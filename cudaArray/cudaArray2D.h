@@ -1,0 +1,252 @@
+// Author: True Price <jtprice at cs.unc.edu>
+
+#ifndef CUDAARRAY2D_H_
+#define CUDAARRAY2D_H_
+
+#include "cudaArray2DBase.h"
+
+#include <memory>  // for shared_ptr
+
+namespace cua {
+
+/**
+ * @class CudaArray2D
+ * @brief Linear-memory 2D array.
+ *
+ * This class implements a straightforward interface for linear 2D arrays on the
+ * GPU. These arrays are read-able and write-able, and copy/assignment for these
+ * arrays is a shallow operation. Use Copy(other) to perform a deep copy.
+ *
+ * The arrays can be directly passed into device-level code, i.e., you can write
+ * kernels that have CudaArray2D objects in their parameter lists:
+ *
+ *     __global__ void device_kernel(CudaArray2D<float> arr) {
+ *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
+ *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
+ *       arr.set(x, y, 0.0);
+ *     }
+ */
+template <typename T>
+class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
+ public:
+  friend class CudaArray2DBase<CudaArray2D<T>>;
+
+  /// datatype of the array
+  typedef T Scalar;
+
+  typedef CudaArray2DBase<CudaArray2D<T>> Base;
+
+  // for convenience, reference protected base class members directly (they are
+  // otherwise not in the current scope because CudaArray2DBase is templated)
+  using Base::width_;
+  using Base::height_;
+  using Base::block_dim_;
+  using Base::grid_dim_;
+  using Base::stream_;
+
+  //----------------------------------------------------------------------------
+  // constructors and destructor
+
+  /**
+   * Constructor.
+   * @param width number of columns in the array, assuming a row-major array
+   * @param height number of rows in the array, assuming a row-major array
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   */
+  CudaArray2D(const size_t width, const size_t height,
+              const dim3 block_dim = CudaArray2D<T>::BLOCK_DIM,
+              const cudaStream_t stream = 0);  // default stream
+
+  /**
+   * Host and device-level copy constructor. This is a shallow-copy operation,
+   * meaning that the underlying CUDA memory is the same for both arrays.
+   */
+  __host__ __device__ CudaArray2D(const CudaArray2D<T> &other);
+
+  ~CudaArray2D();
+
+  //----------------------------------------------------------------------------
+  // array operations
+
+  /**
+   * Create an empty array of the same size as the current array.
+   */
+  CudaArray2D<T> EmptyCopy() const;
+
+  /**
+   * Create a new empty array with transposed dimensions (flipped height/width).
+   */
+  CudaArray2D<T> EmptyFlippedCopy() const;
+
+  /**
+   * Shallow re-assignment of the given array to share the contents of another.
+   * @param other a separate array whose contents will now also be referenced by
+   *   the current array
+   * @return *this
+   */
+  CudaArray2D<T> &operator=(const CudaArray2D<T> &other);
+
+  /**
+   * Copy the contents of a CPU-bound memory array to the current array. This
+   * function assumes that the CPU array has the correct size!
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
+  CudaArray2D<T> &operator=(const T *host_array);
+
+  /**
+   * Copy the contents of the current array to a CPU-bound memory array. This
+   * function assumes that the CPU array has the correct size!
+   * @param host_array the CPU-bound array
+   */
+  void CopyTo(T *host_array) const;
+
+  //----------------------------------------------------------------------------
+  // getters/setters
+
+  /**
+   * Device-level function for setting an element in an array
+   * @param x first coordinate, i.e., the column index in a row-major array
+   * @param y second coordinate, i.e., the row index in a row-major array
+   * @param v the new value to assign to array(x, y)
+   */
+  __device__ inline void set(const size_t x, const size_t y, const T v) {
+    *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T))) = v;
+  }
+
+  /**
+   * Device-level function for getting an element in an array
+   * @param x first coordinate, i.e., the column index in a row-major array
+   * @param y second coordinate, i.e., the row index in a row-major array
+   * @return the value at array(x, y)
+   */
+  __device__ inline T get(const size_t x, const size_t y) const {
+    return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+  }
+
+  /**
+   * Get the pitch of the array (the number of bytes in a row for a row-major
+   * array).
+   */
+  __host__ __device__ inline size_t get_pitch() const { return pitch_; }
+
+  //----------------------------------------------------------------------------
+  // private class methods and fields
+
+ private:
+
+  size_t pitch_;
+
+  std::shared_ptr<T> dev_array_;
+  T *dev_array_ref_;  // equivalent to dev_array_.get(); necessary because that
+                      // function is not available on the device
+};
+
+//------------------------------------------------------------------------------
+// template typedef for CRTP model, a la Eigen
+
+template <typename T>
+struct CudaArrayTraits<CudaArray2D<T>> {
+  typedef T Scalar;
+};
+
+//------------------------------------------------------------------------------
+//
+// public method implementations
+//
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T>::CudaArray2D<T>(const size_t width, const size_t height,
+                               const dim3 block_dim, const cudaStream_t stream)
+    : Base(width, height, block_dim, stream) {
+  cudaMallocPitch(&dev_array_ref_, &pitch_, sizeof(T) * width_, height_);
+  dev_array_ = std::shared_ptr<T>(dev_array_ref_, cudaFree);
+}
+
+//------------------------------------------------------------------------------
+
+// host- and device-level copy constructor
+template <typename T>
+__host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
+    : Base(other),
+      pitch_(other.pitch_),
+      dev_array_(nullptr),
+      dev_array_ref_(other.dev_array_ref_) {
+#ifdef __CUDA_ARCH__
+#else
+  dev_array_ = other.dev_array_;  // allow this only on the host device
+#endif
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T>::~CudaArray2D<T>() {
+  dev_array_.reset();
+  dev_array_ref_ = nullptr;
+
+  width_ = 0;
+  height_ = 0;
+  pitch_ = 0;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T> CudaArray2D<T>::EmptyCopy() const {
+  return CudaArray2D<T>(width_, height_, block_dim_, stream_);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T> CudaArray2D<T>::EmptyFlippedCopy() const {
+  return CudaArray2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
+                        stream_);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
+  if (this == &other) {
+    return *this;
+  }
+
+  Base::operator=(other);
+
+  pitch_ = other.pitch_;
+
+  dev_array_ = other.dev_array_;
+  dev_array_ref_ = other.dev_array_ref_;
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
+  const size_t width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2D(dev_array_ref_, pitch_, host_array, width_in_bytes,
+               width_in_bytes, height_, cudaMemcpyHostToDevice);
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+void CudaArray2D<T>::CopyTo(T *host_array) const {
+  const size_t width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
+               width_in_bytes, height_, cudaMemcpyDeviceToHost);
+}
+
+}  // namespace cua
+
+#endif  // CUDAARRAY2D_H_

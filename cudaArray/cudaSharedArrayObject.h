@@ -5,17 +5,15 @@
 
 namespace cua {
 
-//------------------------------------------------------------------------------
-//
-// CudaSharedArrayObject
-// class for sharing a textures or surfaces among instances
-// T: underlying datatype of the created array
-// CUDA_API_ObjType: cudaTextureObject_t or cudaSurfaceObject_t
-// CUDA_API_DestroyObj: function for destroying an object of type
-//   CUDA_API_ObjType
-//
-//------------------------------------------------------------------------------
-
+/**
+ * @class CudaSharedArrayObject
+ * @brief Class for sharing a textures or surfaces among instances
+ *
+ * T: underlying datatype of the created array
+ * CUDA_API_ObjType: cudaTextureObject_t or cudaSurfaceObject_t
+ * CUDA_API_DestroyObj: function for destroying an object of type
+ *   CUDA_API_ObjType
+ */
 template <typename T, typename CUDA_API_ObjType,
           cudaError_t CUDA_API_DestroyObj(CUDA_API_ObjType)>
 class CudaSharedArrayObject {

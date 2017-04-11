@@ -31,7 +31,7 @@ struct CudaArrayTraits;  // forward declaration
  *    - `Derived EmptyFlippedCopy() const;`
  * 4. set(): write to array position (optional for readonly subclasses)
  *    - `__device__
- *       inline void set(const size_t x, const size_t y, Scalar *value);`
+ *       inline void set(const size_t x, const size_t y, Scalar value);`
  * 5. get(): read from array position
  *    - `__device__ inline Scalar get(const size_t x, const size_t y) const;`
  * 6. operator=(): suggested to have this for getting data from the CPU

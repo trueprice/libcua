@@ -51,74 +51,130 @@ __global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass mat,
  *   typedef T Scalar;
  * };
  */
-template <typename Derived> struct CudaArrayTraits; // forward declaration
+template <typename Derived>
+struct CudaArrayTraits;  // forward declaration
 
-//------------------------------------------------------------------------------
-//
-// CudaArray3DBase class definition
-//
-//------------------------------------------------------------------------------
-
+/**
+ * @class CudaArray3DBase
+ * @brief Base class for all 3D CudaArray-type objects.
+ *
+ * This class includes implementations for Copy, etc.
+ * All derived classes need to define the following members:
+ *
+ * 1. copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
+ *    perform host-specific instructions
+ *    - `__host__ __device__ Derived(const Derived &other);`
+ * 2. EmptyCopy(): to create a new array of the same size
+ *    - `Derived EmptyCopy() const;`
+ * 3. set(): write to array position (optional for readonly subclasses)
+ *    - `__device__ inline void set(const size_t x, const size_t y,
+ *                                  const size_t z, Scalar value);`
+ * 4. get(): read from array position
+ *    - `__device__
+ *    inline Scalar get(const size_t x, const size_t y, const size_t z) const;`
+ * 5. operator=(): suggested to have this for getting data from the CPU
+ *   - `Derived &operator=(const Scalar *host_array);`
+ * 6. CopyTo(): suggested to have this for getting data to the CPU
+ *    - `void CopyTo(Scalar *host_array) const;`
+ *
+ * Also, any derived class will need to separately declare a CudaArrayTraits
+ * struct instantiation with a "Scalar" member, e.g.,
+ *
+ *     template <typename T>
+ *     struct CudaArrayTraits<Derived<T>> {
+ *       typedef T Scalar;
+ *     };
+ */
 template <typename Derived>
 class CudaArray3DBase {
-public:
-  //
-  // all derived classes need to define the following:
-  // 
-  
-  // (1)
+ public:
+  //----------------------------------------------------------------------------
+  // static class elements and typedefs
+
+  /// datatype of the array
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
-  // (2)
-  // copy constructor on host *and* device, (use #ifndef __CUDA_ARCH__ to
-  // perform host-specific instructions)
+  /// default block dimensions for general operations
+  static const dim3 BLOCK_DIM;
+
+  //----------------------------------------------------------------------------
+  // constructors and derived()
+
+  /**
+   * Constructor.
+   * @param width number of columns in the array, assuming a row-major array
+   * @param height number of rows in the array, assuming a row-major array
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   */
+  CudaArray3DBase(const size_t width, const size_t height, const size_t depth,
+                  const dim3 block_dim = CudaArray3DBase<Derived>::BLOCK_DIM,
+                  const cudaStream_t stream = 0);  // default stream
+
+  /**
+   * Base-level copy constructor.
+   * @param other array from which to copy array properties such as width and
+   *   height
+   */
   __host__ __device__ CudaArray3DBase(const CudaArray3DBase<Derived> &other)
-      : width_(other.width_), height_(other.height_), depth_(other.depth_),
-        block_dim_(other.block_dim_), grid_dim_(other.grid_dim_),
+      : width_(other.width_),
+        height_(other.height_),
+        depth_(other.depth_),
+        block_dim_(other.block_dim_),
+        grid_dim_(other.grid_dim_),
         stream_(other.stream_) {}
 
-  // (3)
-  // create a new matrix of the same size
-  // Derived emptyCopy() const;
-  
-  // (4) -- write to array position
-  //__device__ inline void set(const size_t x, const size_t y, const size_t z,
-  //                           Scalar value);
-
-  // (5) -- read from array position
-  //__device__ inline Scalar get(const size_t x, const size_t y,
-  //                             const size_t z) const;
-
-  // (6) -- suggested to have this for getting data from the CPU
-  //Derived &operator=(const Scalar *host_array);
-
-  // (7) -- suggested to have this for getting data to the CPU
-  //void copyTo(Scalar *host_array) const;
-
-  CudaArray3DBase(const size_t width, const size_t height, const size_t depth,
-              const dim3 block_dim = CudaArray3DBase<Derived>::BLOCK_DIM,
-              const cudaStream_t stream = 0); // default stream
-
-  CudaArray3DBase<Derived> &operator=(const CudaArray3DBase<Derived> &other);
-
+  /**
+   * @returns a reference to the object cast to its dervied class type
+   */
   __host__ __device__ Derived &derived() {
     return *reinterpret_cast<Derived *>(this);
   }
 
+  /**
+   * @returns a reference to the object cast to its dervied class type
+   */
   __host__ __device__ const Derived &derived() const {
     return *reinterpret_cast<const Derived *>(this);
   }
 
-  // create a new object
+  /**
+   * Base-level assignment operator; merely copies size, thread dim, and stream
+   * parameters. You will probably want to implement your own version of = and
+   * call this one internally.
+   * @param other the reference array
+   * @return *this
+   */
+  CudaArray3DBase<Derived> &operator=(const CudaArray3DBase<Derived> &other);
+
+  //----------------------------------------------------------------------------
+  // general array operations that create a new object
+
+  /**
+   * @return a new copy of the current array.
+   */
   Derived copy() const {
     Derived result = derived().emptyCopy();
     copy(result);
     return result;
   }
 
-  template <typename OtherDerived> // allow copies to other scalar types
+  //----------------------------------------------------------------------------
+  // general array options that write to an existing object
+
+  /**
+   * Copy the current array to another array.
+   * @ param other output array
+   * @return other
+   */
+  template <typename OtherDerived>  // allow copies to other scalar types
   OtherDerived &copy(OtherDerived &other) const;
-  
+
+  //----------------------------------------------------------------------------
+  // getters/setters
+
   __host__ __device__ inline size_t get_width() const { return width_; }
   __host__ __device__ inline size_t get_height() const { return height_; }
   __host__ __device__ inline size_t get_depth() const { return depth_; }
@@ -134,35 +190,42 @@ public:
   }
 
   inline cudaStream_t get_stream() const { return stream_; }
-  inline void set_stream(const cudaStream_t stream){ stream_ = stream; }
+  inline void set_stream(const cudaStream_t stream) { stream_ = stream; }
 
-  // apply a generic function to each element of the array and update that
-  // element's value
-  // The signature of op should be op(x, y) -> Scalar
+  //----------------------------------------------------------------------------
+  // general array operations
+
+  /**
+   * Apply a general element-wise operation to the array. Here's a simple
+   * example that uses a device-level C++11 lambda function to store the sum of
+   * two arrays `arr1` and `arr2` into the output array:
+   *
+   *      // Array3DType arr1, arr2
+   *      // Array3DType out
+   *      out.apply_op([arr1, arr2] __device__(const size_t x, const size_t y,
+   *                                           const size_t z) {
+   *        return arr1.get(x, y, z) + arr2.get(x, y, z);  // => out(x, y, z)
+   *      });
+   *
+   * @param op `__device__` function mapping `(x,y,z) -> CudaArrayClass::Scalar`
+   * @param shared_mem_bytes if `op()` uses shared memory, the size of the
+   *   shared memory space required
+   */
   template <class Function>
   void apply_op(Function op, const size_t shared_mem_bytes = 0) {
     CudaArray3DBase_apply_op_kernel
         <<<grid_dim_, block_dim_, shared_mem_bytes, stream_>>>(derived(), op);
   }
 
-//
-// protected class fields
-//
+  //----------------------------------------------------------------------------
+  // protected class methods and fields
 
-protected:
+ protected:
   size_t width_, height_, depth_;
 
-  dim3 block_dim_, grid_dim_; // for calling kernels
+  dim3 block_dim_, grid_dim_;  // for calling kernels
 
-  cudaStream_t stream_; // the stream on the GPU in which the class kernels run
-
-//
-// static class elements
-//
-
-public:
-  // general default block dimensions
-  static const dim3 BLOCK_DIM;
+  cudaStream_t stream_;  // the stream on the GPU in which the class kernels run
 };
 
 //------------------------------------------------------------------------------
@@ -193,8 +256,8 @@ CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const size_t width,
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::
-operator=(const CudaArray3DBase<Derived> &other) {
+CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
+    const CudaArray3DBase<Derived> &other) {
   if (this == &other) {
     return *this;
   }
@@ -202,7 +265,7 @@ operator=(const CudaArray3DBase<Derived> &other) {
   width_ = other.width_;
   height_ = other.height_;
   depth_ = other.depth_;
-  
+
   block_dim_ = other.block_dim_;
   grid_dim_ = other.grid_dim_;
   stream_ = other.stream_;

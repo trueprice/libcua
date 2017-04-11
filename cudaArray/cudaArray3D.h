@@ -9,18 +9,32 @@
 
 namespace cua {
 
-//------------------------------------------------------------------------------
-//
-// CudaArray3D class definition
-//
-//------------------------------------------------------------------------------
-
+/**
+ * @class CudaArray3D
+ * @brief Linear-memory 3D array.
+ *
+ * This class implements a straightforward interface for linear 3D arrays on the
+ * GPU. These arrays are read-able and write-able, and copy/assignment for these
+ * arrays is a shallow operation. Use Copy(other) to perform a deep copy.
+ *
+ * The arrays can be directly passed into device-level code, i.e., you can write
+ * kernels that have CudaArray3D objects in their parameter lists:
+ *
+ *     __global__ void device_kernel(CudaArray3D<float> arr) {
+ *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
+ *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
+ *       const int z = blockIdx.z * blockDim.z + threadIdx.z;
+ *       arr.set(x, y, z, 0.0);
+ *     }
+ */
 template <typename T>
 class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
  public:
   friend class CudaArray3DBase<CudaArray3D<T>>;
 
+  /// datatype of the array
   typedef T Scalar;
+
   typedef CudaArray3DBase<CudaArray3D<T>> Base;
 
   // for convenience, reference protected base class members directly (they are
@@ -32,45 +46,95 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   using Base::grid_dim_;
   using Base::stream_;
 
+  //----------------------------------------------------------------------------
+  // constructors and destructor
+
+  /**
+   * Constructor.
+   * @param width number of elements in the first dimension of the array
+   * @param height number of elements in the second dimension of the array
+   * @param height number of elements in the third dimension of the array
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   */
   CudaArray3D(const size_t width, const size_t height, const size_t depth,
               const dim3 block_dim = CudaArray3D<T>::BLOCK_DIM,
               const cudaStream_t stream = 0);  // default stream
 
+  /**
+   * Host and device-level copy constructor. This is a shallow-copy operation,
+   * meaning that the underlying CUDA memory is the same for both arrays.
+   */
   __host__ __device__ CudaArray3D(const CudaArray3D<T> &other);
 
   ~CudaArray3D();
 
-  //
+  //----------------------------------------------------------------------------
+  // array operations
+
+  /**
+   * Create an empty array of the same size as the current array.
+   */
   CudaArray3D<T> emptyCopy() const;
 
-  //
+  /**
+   * Shallow re-assignment of the given array to share the contents of another.
+   * @param other a separate array whose contents will now also be referenced by
+   *   the current array
+   * @return *this
+   */
   CudaArray3D<T> &operator=(const CudaArray3D<T> &other);
 
-  //
+  /**
+   * Copy the contents of a CPU-bound memory array to the current array. This
+   * function assumes that the CPU array has the correct size!
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
   CudaArray3D<T> &operator=(const T *host_array);
 
-  //
+  /**
+   * Copy the contents of the current array to a CPU-bound memory array. This
+   * function assumes that the CPU array has the correct size!
+   * @param host_array the CPU-bound array
+   */
   void copyTo(T *host_array) const;
 
-  //
+  //----------------------------------------------------------------------------
+  // getters/setters
+
+  /**
+   * Device-level function for setting an element in an array
+   * @param x first coordinate
+   * @param y second coordinate
+   * @param z third coordinate
+   * @param v the new value to assign to array(x, y, z)
+   */
   __device__ inline void set(const size_t x, const size_t y, const size_t z,
                              const T v) {
     *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
             x * sizeof(T))) = v;
   }
 
-  //
+  /**
+   * Device-level function for getting an element in an array
+   * @param x first coordinate
+   * @param y second coordinate
+   * @param z third coordinate
+   * @return the value at array(x, y, z)
+   */
   __device__ inline T get(const size_t x, const size_t y,
                           const size_t z) const {
     return *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
                    x * sizeof(T)));
   }
 
- private:
-  //
-  // private class fields
-  //
+  //----------------------------------------------------------------------------
+  // private class methods and fields
 
+ private:
   size_t pitch_;
 
   std::shared_ptr<T> dev_array_;

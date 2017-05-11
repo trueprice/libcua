@@ -123,7 +123,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   /**
    * Create an empty array of the same size as the current array.
    */
-  CudaSurface3DBase<Derived> emptyCopy() const;
+  CudaSurface3DBase<Derived> EmptyCopy() const;
 
   /**
    * Shallow re-assignment of the given array to share the contents of another.
@@ -205,9 +205,9 @@ __host__ __device__ CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::emptyCopy() const {
-  return CudaSurface3DBase<Derived>(width_, height_, block_dim_, stream_,
-                                    boundary_mode_);
+CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy() const {
+  return CudaSurface3DBase<Derived>(width_, height_, depth_, block_dim_,
+                                    stream_, boundary_mode_);
 }
 
 //------------------------------------------------------------------------------
@@ -266,6 +266,7 @@ template <typename T>
 class CudaSurface2DArray : public CudaSurface3DBase<CudaSurface2DArray<T>> {
  public:
   using CudaSurface3DBase<CudaSurface2DArray<T>>::CudaSurface3DBase;
+  using CudaSurface3DBase<CudaSurface2DArray<T>>::operator=;
 
   /**
    * Device-level function for setting an element in an array
@@ -304,6 +305,7 @@ template <typename T>
 class CudaSurface3D : public CudaSurface3DBase<CudaSurface3D<T>> {
  public:
   using CudaSurface3DBase<CudaSurface3D<T>>::CudaSurface3DBase;
+  using CudaSurface3DBase<CudaSurface3D<T>>::operator=;
 
   /**
    * Device-level function for setting an element in an array

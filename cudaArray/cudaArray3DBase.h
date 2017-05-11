@@ -189,9 +189,9 @@ class CudaArray3DBase {
   /**
    * @return a new copy of the current array.
    */
-  Derived copy() const {
-    Derived result = derived().emptyCopy();
-    copy(result);
+  Derived Copy() const {
+    Derived result = derived().EmptyCopy();
+    Copy(result);
     return result;
   }
 
@@ -204,7 +204,7 @@ class CudaArray3DBase {
    * @return other
    */
   template <typename OtherDerived>  // allow copies to other scalar types
-  OtherDerived &copy(OtherDerived &other) const;
+  OtherDerived &Copy(OtherDerived &other) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -311,11 +311,11 @@ CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
 
 template <typename Derived>
 template <typename OtherDerived>
-OtherDerived &CudaArray3DBase<Derived>::copy(OtherDerived &other) const {
+OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
   if (this != &other) {
     if (width_ != other.width_ || height_ != other.height_ ||
         depth_ != other.depth_) {
-      other = derived().emptyCopy();
+      other = derived().EmptyCopy();
     }
 
     CudaArray3DBase_copy_kernel<<<grid_dim_, block_dim_>>>(derived(), other);

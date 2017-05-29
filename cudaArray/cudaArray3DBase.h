@@ -78,6 +78,21 @@ __global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass mat,
 
 //------------------------------------------------------------------------------
 
+//
+// fill an array with a value
+//
+template <typename CudaArrayClass, typename T>
+__global__ void CudaArray3DBase_fill_kernel(CudaArrayClass mat, const T value) {
+  const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
+  const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
+  const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+
+  if (x < mat.get_width() && y < mat.get_height() && z < mat.get_depth()) {
+    mat.set(x, y, z, value);
+  }
+}
+//------------------------------------------------------------------------------
+
 // Any derived class will need to declare
 /*
  * template <typename T>
@@ -205,6 +220,15 @@ class CudaArray3DBase {
    */
   template <typename OtherDerived>  // allow copies to other scalar types
   OtherDerived &Copy(OtherDerived &other) const;
+
+  /**
+   * Fill the array with a constant value.
+   * @param value every element in the array is set to value
+   */
+  inline void Fill(const Scalar value) {
+    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
+        (derived(), value);
+  }
 
   //----------------------------------------------------------------------------
   // getters/setters

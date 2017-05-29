@@ -110,7 +110,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   /**
    * Create an empty array of the same size as the current array.
    */
-  CudaArray3D<T> emptyCopy() const;
+  CudaArray3D<T> EmptyCopy() const;
 
   /**
    * Shallow re-assignment of the given array to share the contents of another.
@@ -133,7 +133,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
-  void copyTo(T *host_array) const;
+  void CopyTo(T *host_array) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -225,7 +225,7 @@ CudaArray3D<T>::~CudaArray3D<T>() {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray3D<T> CudaArray3D<T>::emptyCopy() const {
+CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
   return CudaArray3D<T>(width_, height_, depth_, block_dim_, stream_);
 }
 
@@ -268,7 +268,7 @@ CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaArray3D<T>::copyTo(T *host_array) const {
+void CudaArray3D<T>::CopyTo(T *host_array) const {
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
   params.srcPtr =

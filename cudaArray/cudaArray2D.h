@@ -160,6 +160,15 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
     return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
   }
 
+  __device__ inline const T& ref(const size_t x, const size_t y) const {
+    return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+  }
+
+  __device__ inline T * ptr(const size_t x, const size_t y) {
+      return ((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+  }
+
+
   /**
    * Get the pitch of the array (the number of bytes in a row for a row-major
    * array).

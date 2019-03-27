@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -48,9 +48,11 @@ namespace cua {
  * @brief Surface-memory 2D array.
  *
  * This class implements an interface for 2D surface-memory arrays on the GPU.
- * These arrays are read-able and write-able, and compared to linear-memory array
+ * These arrays are read-able and write-able, and compared to linear-memory
+ * array
  * they have better cache coherence properties for memory accesses in a 2D
- * neighborhood. Copy/assignment for CudaSurface2D objects is a shallow operation;
+ * neighborhood. Copy/assignment for CudaSurface2D objects is a shallow
+ * operation;
  * use Copy(other) to perform a deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
@@ -144,6 +146,9 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    */
   void CopyTo(T *host_array) const;
 
+  CudaSurface2D<T> &Upload(const int host_array_width,
+                           const int host_array_height, const T *host_array,
+                           const int host_array_pitch = 0);
   //----------------------------------------------------------------------------
   // getters/setters
 
@@ -165,8 +170,8 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    * @return the value at array(x, y)
    */
   __device__ inline T get(const int x, const int y) const {
-    return surf2Dread<T>(shared_surface_.get_cuda_api_object(), sizeof(T) * x, y,
-                         boundary_mode_);
+    return surf2Dread<T>(shared_surface_.get_cuda_api_object(), sizeof(T) * x,
+                         y, boundary_mode_);
   }
 
   /**
@@ -188,7 +193,6 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   // private class methods and fields
 
  private:
-
   CudaSharedSurfaceObject<T> shared_surface_;
 
   cudaSurfaceBoundaryMode boundary_mode_;
@@ -266,6 +270,22 @@ CudaSurface2D<T> &CudaSurface2D<T>::operator=(const CudaSurface2D<T> &other) {
   shared_surface_ = other.shared_surface_;
 
   boundary_mode_ = other.boundary_mode_;
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
+                                           const int host_array_height,
+                                           const T *host_array,
+                                           const int host_array_pitch) {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2DToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
+                      spitch * sizeof(T), host_array_width * sizeof(T),
+                      host_array_height, cudaMemcpyHostToDevice);
 
   return *this;
 }

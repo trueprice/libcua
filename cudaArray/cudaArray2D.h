@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -130,12 +130,19 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   CudaArray2D<T> &operator=(const T *host_array);
 
+  CudaArray2D<T> &Upload(const int host_array_width,
+                         const int host_array_height, const T *host_array,
+                         const int host_array_pitch = 0);
+
   /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
+
+  void CopyTo(const int host_array_width, const int host_array_height,
+              T *host_array, const int host_array_pitch = 0) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -160,14 +167,13 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
     return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
   }
 
-  __device__ inline const T& ref(const size_t x, const size_t y) const {
+  __device__ inline const T &ref(const size_t x, const size_t y) const {
     return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
   }
 
-  __device__ inline T * ptr(const size_t x, const size_t y) {
-      return ((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+  __device__ inline T *ptr(const size_t x, const size_t y) {
+    return ((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
   }
-
 
   /**
    * Get the pitch of the array (the number of bytes in a row for a row-major
@@ -179,7 +185,6 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
   // private class methods and fields
 
  private:
-
   size_t pitch_;
 
   std::shared_ptr<T> dev_array_;
@@ -283,10 +288,39 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
+CudaArray2D<T> &CudaArray2D<T>::Upload(const int host_array_width,
+                                       const int host_array_height,
+                                       const T *host_array,
+                                       const int host_array_pitch) {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2D(dev_array_ref_, pitch_, host_array, spitch * sizeof(T),
+               host_array_width * sizeof(T), host_array_height,
+               cudaMemcpyHostToDevice);
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
 void CudaArray2D<T>::CopyTo(T *host_array) const {
   const size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+void CudaArray2D<T>::CopyTo(const int host_array_width,
+                            const int host_array_height, T *host_array,
+                            const int host_array_pitch) const {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2D(host_array, spitch * sizeof(T), dev_array_ref_, pitch_,
+               host_array_width * sizeof(T), host_array_height,
+               cudaMemcpyDeviceToHost);
 }
 
 }  // namespace cua

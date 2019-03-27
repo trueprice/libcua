@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -162,6 +162,11 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
                           const size_t z) const {
     return *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
                    x * sizeof(T)));
+  }
+
+  __device__ inline T *getPtr(const size_t x, const size_t y, const size_t z) {
+    return (T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
+                 x * sizeof(T));
   }
 
   //----------------------------------------------------------------------------

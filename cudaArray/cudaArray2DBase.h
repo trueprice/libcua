@@ -310,8 +310,10 @@ class CudaArray2DBase {
 
   inline void set_block_dim(const dim3 block_dim) {
     block_dim_ = block_dim;
-    grid_dim_ = dim3((int)std::ceil(float(width_) / block_dim_.x),
-                     (int)std::ceil(float(height_) / block_dim_.y));
+    grid_dim_ = dim3(
+        static_cast<int>(std::ceil(static_cast<float>(width_)) / block_dim_.x),
+        static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                         block_dim_.y));
   }
 
   inline cudaStream_t get_stream() const { return stream_; }
@@ -495,9 +497,11 @@ void CudaArray2DBase<Derived>::FillRandom(curandStateArrayClass rand_state,
                                           RandomFunction func) {
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
 
   CudaArray2DBase_fillRandom_kernel<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);
@@ -513,9 +517,11 @@ template <typename Derived>
 Derived &CudaArray2DBase<Derived>::FlipLR(Derived &other) const {
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
 
   CudaArray2DBase_fliplr_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -529,9 +535,11 @@ template <typename Derived>
 Derived &CudaArray2DBase<Derived>::FlipUD(Derived &other) const {
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
 
   CudaArray2DBase_flipud_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -548,9 +556,11 @@ Derived &CudaArray2DBase<Derived>::Rot180(Derived &other) const {
   // CudaArray2DBase<Derived>::BLOCK_ROWS
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
 
   CudaArray2DBase_rot180_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -567,9 +577,11 @@ Derived &CudaArray2DBase<Derived>::Rot90_CCW(Derived &other) const {
   // CudaArray2DBase<Derived>::BLOCK_ROWS
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
   const size_t shm_size = CudaArray2DBase<Derived>::TILE_SIZE *
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);
@@ -589,9 +601,11 @@ Derived &CudaArray2DBase<Derived>::Rot90_CW(Derived &other) const {
   // CudaArray2DBase<Derived>::BLOCK_ROWS
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
   const size_t shm_size = CudaArray2DBase<Derived>::TILE_SIZE *
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);
@@ -611,9 +625,11 @@ Derived &CudaArray2DBase<Derived>::Transpose(Derived &other) const {
   // CudaArray2DBase<Derived>::BLOCK_ROWS
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
-  const dim3 grid_dim = dim3(
-      (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
-      (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
+  const dim3 grid_dim =
+      dim3(static_cast<int>(std::ceil(static_cast<float>(width_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE),
+           static_cast<int>(std::ceil(static_cast<float>(height_)) /
+                            CudaArray2DBase<Derived>::TILE_SIZE));
   const size_t shm_size = CudaArray2DBase<Derived>::TILE_SIZE *
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);

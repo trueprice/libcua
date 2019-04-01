@@ -242,9 +242,10 @@ class CudaArray3DBase {
 
   inline void set_block_dim(const dim3 block_dim) {
     block_dim_ = block_dim;
-    grid_dim_ = dim3((int)std::ceil(float(width_) / block_dim_.x),
-                     (int)std::ceil(float(height_) / block_dim_.y),
-                     (int)std::ceil(float(depth_) / block_dim_.z));
+    grid_dim_ = dim3(
+        static_cast<int>(std::ceil(static_cast<float>(width_) / block_dim_.x)),
+        static_cast<int>(std::ceil(static_cast<float>(height_) / block_dim_.y)),
+        static_cast<int>(std::ceil(static_cast<float>(depth_) / block_dim_.z)));
   }
 
   inline cudaStream_t get_stream() const { return stream_; }

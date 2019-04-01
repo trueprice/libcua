@@ -154,7 +154,8 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param v the new value to assign to array(x, y)
    */
   __device__ inline void set(const size_t x, const size_t y, const T v) {
-    *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T))) = v;
+    *(reinterpret_cast<T *>(((reinterpret_cast<char *>(dev_array_ref_)
+      + y * pitch_) + x * sizeof(T))) = v;
   }
 
   /**
@@ -164,15 +165,18 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @return the value at array(x, y)
    */
   __device__ inline T get(const size_t x, const size_t y) const {
-    return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+    return *(reinterpret_cast<T *>(((reinterpret_cast<char *>(dev_array_ref_)
+             + y * pitch_) + x * sizeof(T)));
   }
 
   __device__ inline const T &ref(const size_t x, const size_t y) const {
-    return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+    return *(reinterpret_cast<T *>(((reinterpret_cast<char *>(dev_array_ref_)
+             + y * pitch_) + x * sizeof(T)));
   }
 
   __device__ inline T *ptr(const size_t x, const size_t y) {
-    return ((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+    return (reinterpret_cast<T *>(((reinterpret_cast<char *>(dev_array_ref_)
+            + y * pitch_) + x * sizeof(T)));
   }
 
   /**

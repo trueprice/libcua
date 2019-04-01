@@ -147,8 +147,9 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline void set(const size_t x, const size_t y, const size_t z,
                              const T v) {
-    *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
-            x * sizeof(T))) = v;
+    *(reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
+                            + (z * height_ + y) * pitch_
+                            + x * sizeof(T))) = v;
   }
 
   /**
@@ -160,13 +161,15 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline T get(const size_t x, const size_t y,
                           const size_t z) const {
-    return *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
-                   x * sizeof(T)));
+    return *(reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
+             + (z * height_ + y) * pitch_
+             + x * sizeof(T)));
   }
 
   __device__ inline T *getPtr(const size_t x, const size_t y, const size_t z) {
-    return (T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
-                 x * sizeof(T));
+    return reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
+           + (z * height_ + y) * pitch_
+           + x * sizeof(T));
   }
 
   //----------------------------------------------------------------------------
@@ -195,7 +198,7 @@ CudaArray3D<T>::CudaArray3D<T>(const size_t width, const size_t height,
                make_cudaExtent(sizeof(T) * width_, height_, depth_));
 
   pitch_ = dev_pitched_ptr.pitch;
-  dev_array_ref_ = (T *)dev_pitched_ptr.ptr;
+  dev_array_ref_ = reinterpret_cast<T *>(dev_pitched_ptr.ptr);
   dev_array_ = std::shared_ptr<T>(dev_array_ref_, cudaFree);
 }
 

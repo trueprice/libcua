@@ -263,7 +263,7 @@ __global__ void CudaArray2DBase_rot90_CCW_kernel(const SrcCls src, DstCls dst) {
   y = w - 1 - (blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y);  // B to T
 
   if (x < h) {
-    const int min_y = max(y - (int)SrcCls::TILE_SIZE + 1, 0);
+    const int min_y = max(y - static_cast<int>(SrcCls::TILE_SIZE) + 1, 0);
     for (int j = 0; (y - j) >= min_y; j += SrcCls::BLOCK_ROWS) {
       dst.set(x, y - j, tile[threadIdx.x][threadIdx.y + j]);
     }

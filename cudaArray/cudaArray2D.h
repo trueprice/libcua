@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAARRAY2D_H_
-#define CUDAARRAY2D_H_
+#ifndef CUDA_ARRAY2D_H_
+#define CUDA_ARRAY2D_H_
 
 #include "cudaArray2DBase.h"
 
@@ -325,4 +325,4 @@ void CudaArray2D<T>::CopyTo(const int host_array_width,
 
 }  // namespace cua
 
-#endif  // CUDAARRAY2D_H_
+#endif  // CUDA_ARRAY2D_H_

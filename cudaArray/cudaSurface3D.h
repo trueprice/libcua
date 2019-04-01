@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,10 +33,11 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_SURFACE2D_ARRAY_H_
-#define CUDA_SURFACE2D_ARRAY_H_
+#ifndef CUDA_SURFACE3D_H_
+#define CUDA_SURFACE3D_H_
 
 #include "cudaArray3DBase.h"
+#include "cudaSharedArrayObject.h"
 
 #include <memory>  // for shared_ptr
 

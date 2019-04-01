@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -43,15 +43,15 @@
 // TODO: also want to add an Options class that would allow for different random
 // generators, etc.
 
-#ifndef CUDARANDOMSTATEARRAY2D_H_
-#define CUDARANDOMSTATEARRAY2D_H_
+#ifndef CUDA_RANDOM_STATE_ARRAY2D_H_
+#define CUDA_RANDOM_STATE_ARRAY2D_H_
 
 #include "cudaArray2D.h"
 #include "cudaRandomStateArray2D_kernels.h"
 
-#include <chrono>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <chrono>
 
 namespace cua {
 
@@ -75,9 +75,9 @@ CudaRandomStateArray2D::CudaRandomStateArray2D(const size_t width,
   const size_t seed =
       std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-  CudaRandomStateArray2D_init_kernel << <grid_dim_, block_dim_>>> (*this, seed);
+  CudaRandomStateArray2D_init_kernel<<<grid_dim_, block_dim_>>>(*this, seed);
 }
 
-} // namespace cua
+}  // namespace cua
 
-#endif  // CUDARANDOMSTATEARRAY2D_H_
+#endif  // CUDA_RANDOM_STATE_ARRAY2D_H_

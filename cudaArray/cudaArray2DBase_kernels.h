@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAARRAY2D_KERNELS_H_
-#define CUDAARRAY2D_KERNELS_H_
+#ifndef CUDA_ARRAY2D_BASE_KERNELS_H_
+#define CUDA_ARRAY2D_BASE_KERNELS_H_
 
 #include <curand.h>
 #include <curand_kernel.h>
@@ -322,4 +322,4 @@ __global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass mat,
 
 }  // namespace cua
 
-#endif  // CUDAARRAY2D_KERNELS_H_
+#endif  // CUDA_ARRAY2D_BASE_KERNELS_H_

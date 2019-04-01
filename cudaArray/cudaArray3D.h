@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAMATRIX3D_H_
-#define CUDAMATRIX3D_H_
+#ifndef CUDA_ARRAY3D_H_
+#define CUDA_ARRAY3D_H_
 
 #include "cudaArray3DBase.h"
 
@@ -298,4 +298,4 @@ struct CudaArrayTraits<CudaArray3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDAMATRIX3D_H_
+#endif  // CUDA_ARRAY3D_H_

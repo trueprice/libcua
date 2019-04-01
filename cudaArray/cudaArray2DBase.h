@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAARRAY2DBASE_H_
-#define CUDAARRAY2DBASE_H_
+#ifndef CUDA_ARRAY2D_BASE_H_
+#define CUDA_ARRAY2D_BASE_H_
 
 #include "cudaArray2DBase_kernels.h"
 
@@ -56,7 +56,7 @@ struct CudaArrayTraits;  // forward declaration
  * All derived classes need to define the following members:
  *
  * 1. copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
- *    perform host-specific instructions  
+ *    perform host-specific instructions
  *    - `__host__ __device__ Derived(const Derived &other);`
  * 2. EmptyCopy(): to create a new array of the same size
  *    - `Derived EmptyCopy() const;`
@@ -85,7 +85,7 @@ class CudaArray2DBase {
  public:
   //----------------------------------------------------------------------------
   // static class elements and typedefs
-  
+
   /// datatype of the array
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
@@ -100,7 +100,7 @@ class CudaArray2DBase {
 
   //----------------------------------------------------------------------------
   // constructors and derived()
-  
+
   /**
    * Constructor.
    * @param width number of columns in the array, assuming a row-major array
@@ -189,7 +189,8 @@ class CudaArray2DBase {
   }
 
   /**
-   * @return a new copy of the current array, rotated 90 degrees counterclockwise.
+   * @return a new copy of the current array, rotated 90 degrees
+   * counterclockwise.
    */
   inline Derived Rot90_CCW() const {
     Derived result = derived().EmptyFlippedCopy();
@@ -273,8 +274,8 @@ class CudaArray2DBase {
    * @param value every element in the array is set to value
    */
   inline void Fill(const Scalar value) {
-    CudaArray2DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
-        (derived(), value);
+    CudaArray2DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        derived(), value);
   }
 
   /**
@@ -343,8 +344,8 @@ class CudaArray2DBase {
 
     Scalar value, *dev_value;
     cudaMalloc(&dev_value, sizeof(Scalar));
-    CudaArray2DBase_get_kernel<<<1, 1, 0, stream_>>>
-        (derived(), dev_value, x, y);
+    CudaArray2DBase_get_kernel<<<1, 1, 0, stream_>>>(derived(), dev_value, x,
+                                                     y);
     cudaMemcpy(&value, dev_value, sizeof(Scalar), cudaMemcpyDeviceToHost);
     cudaFree(dev_value);
     return value;
@@ -363,16 +364,15 @@ class CudaArray2DBase {
    *      out.apply_op([arr1, arr2] __device__(const size_t x, const size_t y) {
    *        return arr1.get(x, y) + arr2.get(x, y);  // stored in out(x, y)
    *      });
-   * 
+   *
    * @param op `__device__` function mapping `(x,y) -> CudaArrayClass::Scalar`
    * @param shared_mem_bytes if `op()` uses shared memory, the size of the
    *   shared memory space required
    */
   template <class Function>
   inline void apply_op(Function op, const size_t shared_mem_bytes = 0) {
-    CudaArray2DBase_apply_op_kernel
-           <<<grid_dim_, block_dim_, shared_mem_bytes, stream_>>>
-        (derived(), op);
+    CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
+                                      stream_>>>(derived(), op);
   }
 
   /**
@@ -381,8 +381,8 @@ class CudaArray2DBase {
    */
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
-        (tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+    CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
           return tmp.get(x, y) + value;
         });
   }
@@ -399,8 +399,8 @@ class CudaArray2DBase {
    */
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
-        (tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+    CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
           return tmp.get(x, y) * value;
         });
   }
@@ -499,8 +499,8 @@ void CudaArray2DBase<Derived>::FillRandom(curandStateArrayClass rand_state,
       (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
       (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
 
-  CudaArray2DBase_fillRandom_kernel<<<grid_dim, block_dim, 0, stream_>>>
-      (rand_state, derived(), func);
+  CudaArray2DBase_fillRandom_kernel<<<grid_dim, block_dim, 0, stream_>>>(
+      rand_state, derived(), func);
 }
 
 //------------------------------------------------------------------------------
@@ -517,8 +517,8 @@ Derived &CudaArray2DBase<Derived>::FlipLR(Derived &other) const {
       (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
       (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
 
-  CudaArray2DBase_fliplr_kernel<<<grid_dim, block_dim, 0, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_fliplr_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
+                                                                     other);
 
   return other;
 }
@@ -533,8 +533,8 @@ Derived &CudaArray2DBase<Derived>::FlipUD(Derived &other) const {
       (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
       (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
 
-  CudaArray2DBase_flipud_kernel<<<grid_dim, block_dim, 0, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_flipud_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
+                                                                     other);
 
   return other;
 }
@@ -552,8 +552,8 @@ Derived &CudaArray2DBase<Derived>::Rot180(Derived &other) const {
       (int)std::ceil(float(width_) / CudaArray2DBase<Derived>::TILE_SIZE),
       (int)std::ceil(float(height_) / CudaArray2DBase<Derived>::TILE_SIZE));
 
-  CudaArray2DBase_rot180_kernel<<<grid_dim, block_dim, 0, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_rot180_kernel<<<grid_dim, block_dim, 0, stream_>>>(derived(),
+                                                                     other);
 
   return other;
 }
@@ -574,8 +574,8 @@ Derived &CudaArray2DBase<Derived>::Rot90_CCW(Derived &other) const {
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);
 
-  CudaArray2DBase_rot90_CCW_kernel<<<grid_dim, block_dim, shm_size, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_rot90_CCW_kernel<<<grid_dim, block_dim, shm_size, stream_>>>(
+      derived(), other);
 
   return other;
 }
@@ -596,8 +596,8 @@ Derived &CudaArray2DBase<Derived>::Rot90_CW(Derived &other) const {
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);
 
-  CudaArray2DBase_rot90_CW_kernel<<<grid_dim, block_dim, shm_size, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_rot90_CW_kernel<<<grid_dim, block_dim, shm_size, stream_>>>(
+      derived(), other);
 
   return other;
 }
@@ -618,12 +618,12 @@ Derived &CudaArray2DBase<Derived>::Transpose(Derived &other) const {
                           (CudaArray2DBase<Derived>::TILE_SIZE) *
                           sizeof(Scalar);
 
-  CudaArray2DBase_transpose_kernel<<<grid_dim, block_dim, shm_size, stream_>>>
-      (derived(), other);
+  CudaArray2DBase_transpose_kernel<<<grid_dim, block_dim, shm_size, stream_>>>(
+      derived(), other);
 
   return other;
 }
 
 }  // namespace cua
 
-#endif  // CUDAARRAY2D_H_
+#endif  // CUDA_ARRAY2D_BASE_H_

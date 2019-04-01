@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -36,8 +36,8 @@
 // TODO: in the future, expand this class to support more CudaArray3D features
 // (fill, fillRandom, etc.; no need for transpose, etc., though)
 
-#ifndef CUDAARRAY3DBASE_H_
-#define CUDAARRAY3DBASE_H_
+#ifndef CUDA_ARRAY3D_BASE_H_
+#define CUDA_ARRAY3D_BASE_H_
 
 namespace cua {
 
@@ -226,8 +226,8 @@ class CudaArray3DBase {
    * @param value every element in the array is set to value
    */
   inline void Fill(const Scalar value) {
-    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
-        (derived(), value);
+    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        derived(), value);
   }
 
   //----------------------------------------------------------------------------
@@ -271,8 +271,8 @@ class CudaArray3DBase {
    */
   template <class Function>
   void apply_op(Function op, const size_t shared_mem_bytes = 0) {
-    CudaArray3DBase_apply_op_kernel
-        <<<grid_dim_, block_dim_, shared_mem_bytes, stream_>>>(derived(), op);
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
+                                      stream_>>>(derived(), op);
   }
 
   //----------------------------------------------------------------------------
@@ -348,6 +348,6 @@ OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
   return other;
 }
 
-} // namespace cua
+}  // namespace cua
 
-#endif // CUDAARRAY3DBASE_H_
+#endif  // CUDA_ARRAY3D_BASE_H_

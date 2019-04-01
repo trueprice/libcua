@@ -130,6 +130,13 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   CudaArray2D<T> &operator=(const T *host_array);
 
+  /**
+   * Copy the contents of a CPU-bound memory array of input size to the current
+   * array. This function assumes that the input array size is correct and
+   * smaller than size of the 2D array.
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
   CudaArray2D<T> &Upload(const int host_array_width,
                          const int host_array_height, const T *host_array,
                          const int host_array_pitch = 0);
@@ -184,6 +191,13 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * array).
    */
   __host__ __device__ inline size_t get_pitch() const { return pitch_; }
+
+
+  /**
+   * Get the raw pointer to the underlying memory.
+   */
+
+  __host__ __device__ inline T *get_raw_ptr() const { return dev_array_ref_; }
 
   //----------------------------------------------------------------------------
   // private class methods and fields

@@ -99,7 +99,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   __host__ __device__ CudaArray2D(const CudaArray2D<T> &other);
 
-  ~CudaArray2D();
+  __host__ __device__ ~CudaArray2D();
 
   //----------------------------------------------------------------------------
   // array operations
@@ -192,11 +192,9 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   __host__ __device__ inline size_t get_pitch() const { return pitch_; }
 
-
   /**
    * Get the raw pointer to the underlying memory.
    */
-
   __host__ __device__ inline T *get_raw_ptr() const { return dev_array_ref_; }
 
   //----------------------------------------------------------------------------
@@ -204,8 +202,10 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
 
  private:
   size_t pitch_;
-
+#ifdef __CUDA_ARCH__
+#else
   std::shared_ptr<T> dev_array_;
+#endif
   T *dev_array_ref_;  // equivalent to dev_array_.get(); necessary because that
                       // function is not available on the device
 };
@@ -229,7 +229,10 @@ CudaArray2D<T>::CudaArray2D<T>(const size_t width, const size_t height,
                                const dim3 block_dim, const cudaStream_t stream)
     : Base(width, height, block_dim, stream) {
   cudaMallocPitch(&dev_array_ref_, &pitch_, sizeof(T) * width_, height_);
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = std::shared_ptr<T>(dev_array_ref_, cudaFree);
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -239,7 +242,10 @@ template <typename T>
 __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
     : Base(other),
       pitch_(other.pitch_),
+#ifdef __CUDA_ARCH__
+#else
       dev_array_(nullptr),
+#endif
       dev_array_ref_(other.dev_array_ref_) {
 #ifdef __CUDA_ARCH__
 #else
@@ -250,8 +256,11 @@ __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T>::~CudaArray2D<T>() {
+__host__ __device__ CudaArray2D<T>::~CudaArray2D<T>() {
+#ifdef __CUDA_ARCH__
+#else
   dev_array_.reset();
+#endif
   dev_array_ref_ = nullptr;
 
   width_ = 0;
@@ -285,8 +294,10 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
   Base::operator=(other);
 
   pitch_ = other.pitch_;
-
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = other.dev_array_;
+#endif
   dev_array_ref_ = other.dev_array_ref_;
 
   return *this;

@@ -148,7 +148,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
-  void copyTo(Scalar *host_array) const;
+  void CopyTo(Scalar *host_array) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -244,7 +244,7 @@ CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-void CudaSurface3DBase<Derived>::copyTo(
+void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
   cudaMemcpyFromArray(host_array, surface.dev_array, 0, 0,
                       sizeof(Scalar) * width_ * height_ * depth_,

@@ -147,9 +147,8 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline void set(const size_t x, const size_t y, const size_t z,
                              const T v) {
-    *(reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
-                            + (z * height_ + y) * pitch_
-                            + x * sizeof(T))) = v;
+    *(reinterpret_cast<T *>((reinterpret_cast<char *>(dev_array_ref_) +
+                             (z * height_ + y) * pitch_ + x * sizeof(T)))) = v;
   }
 
   /**
@@ -161,15 +160,13 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline T get(const size_t x, const size_t y,
                           const size_t z) const {
-    return *(reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
-             + (z * height_ + y) * pitch_
-             + x * sizeof(T)));
+    return *(reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
+                                   (z * height_ + y) * pitch_ + x * sizeof(T)));
   }
 
   __device__ inline T *ptr(const size_t x, const size_t y, const size_t z) {
-    return reinterpret_cast<T*>((reinterpret_cast<char *>(dev_array_ref_)
-           + (z * height_ + y) * pitch_
-           + x * sizeof(T));
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
+                                 (z * height_ + y) * pitch_ + x * sizeof(T));
   }
 
   //----------------------------------------------------------------------------

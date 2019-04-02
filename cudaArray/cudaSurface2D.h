@@ -140,15 +140,32 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   CudaSurface2D<T> &operator=(const T *host_array);
 
   /**
+   * Copy the contents of a CPU-bound memory array with input size to the
+   * current array. This function assumes that the CPU array has the
+   * specified by the input params.
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
+  CudaSurface2D<T> &Upload(const int host_array_width,
+                           const int host_array_height, const T *host_array,
+                           const int host_array_pitch = 0);
+
+  /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
 
-  CudaSurface2D<T> &Upload(const int host_array_width,
-                           const int host_array_height, const T *host_array,
-                           const int host_array_pitch = 0);
+  /**
+   * Copy the contents of the current array with input size to a CPU-bound
+   * memory array. This function assumes that the CPU array smaller or equal
+   * size than GPU array!
+   * @param host_array the CPU-bound array
+   */
+  void CopyTo(const int host_array_width, const int host_array_height,
+              T *host_array, const int host_array_pitch = 0) const;
+
   //----------------------------------------------------------------------------
   // getters/setters
 
@@ -296,6 +313,20 @@ template <typename T>
 void CudaSurface2D<T>::CopyTo(T *host_array) const {
   cudaMemcpyFromArray(host_array, shared_surface_.get_dev_array(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+void CudaSurface2D<T>::CopyTo(const int host_array_width,
+                              const int host_array_height, T *host_array,
+                              const int host_array_pitch) const {
+  const int dpitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+
+  cudaMemcpy2DFromArray(
+      host_array, dpitch * sizeof(T), shared_surface_.get_dev_array(), 0, 0,
+      host_array_width * sizeof(T), host_array_height, cudaMemcpyDeviceToHost);
 }
 
 }  // namespace cua

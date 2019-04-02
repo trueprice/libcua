@@ -353,4 +353,4 @@ struct CudaArrayTraits<CudaSurface3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDA_SURFACE2D_ARRAY_H_
+#endif  // CUDA_SURFACE3D_H_

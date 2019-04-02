@@ -49,11 +49,9 @@ namespace cua {
  *
  * This class implements an interface for 2D surface-memory arrays on the GPU.
  * These arrays are read-able and write-able, and compared to linear-memory
- * array
- * they have better cache coherence properties for memory accesses in a 2D
- * neighborhood. Copy/assignment for CudaSurface2D objects is a shallow
- * operation;
- * use Copy(other) to perform a deep copy.
+ * array they have better cache coherence properties for memory accesses in a
+ * 2D neighborhood. Copy/assignment for CudaSurface2D objects is a shallow
+ * operation; use Copy(other) to perform a deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
  * kernels that have CudaSurface2D objects in their parameter lists:

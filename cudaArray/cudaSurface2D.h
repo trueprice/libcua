@@ -254,7 +254,7 @@ CudaSurface2D<T>::CudaSurface2D<T>(const CudaSurface2D<T> &other)
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy() const {
+inline CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy() const {
   return CudaSurface2D<T>(width_, height_, block_dim_, stream_, boundary_mode_);
 }
 
@@ -262,7 +262,7 @@ CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy() const {
 
 // create a transposed version (flipped height/width) of the given matrix
 template <typename T>
-CudaSurface2D<T> CudaSurface2D<T>::EmptyFlippedCopy() const {
+inline CudaSurface2D<T> CudaSurface2D<T>::EmptyFlippedCopy() const {
   return CudaSurface2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
                           stream_, boundary_mode_);
 }
@@ -270,7 +270,7 @@ CudaSurface2D<T> CudaSurface2D<T>::EmptyFlippedCopy() const {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaSurface2D<T> &CudaSurface2D<T>::operator=(const T *host_array) {
+inline CudaSurface2D<T> &CudaSurface2D<T>::operator=(const T *host_array) {
   cudaMemcpyToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
                     sizeof(T) * width_ * height_, cudaMemcpyHostToDevice);
 
@@ -280,7 +280,8 @@ CudaSurface2D<T> &CudaSurface2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaSurface2D<T> &CudaSurface2D<T>::operator=(const CudaSurface2D<T> &other) {
+inline CudaSurface2D<T> &CudaSurface2D<T>::operator=(
+    const CudaSurface2D<T> &other) {
   if (this == &other) {
     return *this;
   }
@@ -297,10 +298,10 @@ CudaSurface2D<T> &CudaSurface2D<T>::operator=(const CudaSurface2D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
-                                           const int host_array_height,
-                                           const T *host_array,
-                                           const int host_array_pitch) {
+inline CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
+                                                  const int host_array_height,
+                                                  const T *host_array,
+                                                  const int host_array_pitch) {
   const int spitch =
       host_array_pitch <= 0 ? host_array_width : host_array_pitch;
   cudaMemcpy2DToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
@@ -313,7 +314,7 @@ CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaSurface2D<T>::CopyTo(T *host_array) const {
+inline void CudaSurface2D<T>::CopyTo(T *host_array) const {
   cudaMemcpyFromArray(host_array, shared_surface_.get_dev_array(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
 }
@@ -321,9 +322,9 @@ void CudaSurface2D<T>::CopyTo(T *host_array) const {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaSurface2D<T>::CopyTo(const int host_array_width,
-                              const int host_array_height, T *host_array,
-                              const int host_array_pitch) const {
+inline void CudaSurface2D<T>::CopyTo(const int host_array_width,
+                                     const int host_array_height, T *host_array,
+                                     const int host_array_pitch) const {
   const int dpitch =
       host_array_pitch <= 0 ? host_array_width : host_array_pitch;
 

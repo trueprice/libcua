@@ -208,7 +208,8 @@ __host__ __device__ CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy() const {
+inline CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy()
+    const {
   return CudaSurface3DBase<Derived>(width_, height_, depth_, block_dim_,
                                     stream_, boundary_mode_);
 }
@@ -216,7 +217,7 @@ CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy() const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
+inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
     const CudaSurface3DBase<Derived>::Scalar *host_array) {
   cudaMemcpyToArray(surface.dev_array, 0, 0, host_array,
                     sizeof(Scalar) * width_ * height_ * depth_,
@@ -228,7 +229,7 @@ CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
+inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
     const CudaSurface3DBase<Derived> &other) {
   if (this == &other) {
     return *this;
@@ -246,7 +247,7 @@ CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-void CudaSurface3DBase<Derived>::CopyTo(
+inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
   cudaMemcpyFromArray(host_array, surface.dev_array, 0, 0,
                       sizeof(Scalar) * width_ * height_ * depth_,

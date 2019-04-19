@@ -227,22 +227,8 @@ CudaTexture2D<T>::CudaTexture2D<T>(const CudaTexture2D<T> &other)
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaTexture2D<T> CudaTexture2D<T>::EmptyCopy() const {
-  return CudaTexture2D<T>(width_, height_, block_dim_, stream_);
-}
-
-//------------------------------------------------------------------------------
-
-template <typename T>
-CudaTexture2D<T> CudaTexture2D<T>::EmptyFlippedCopy() const {
-  return CudaTexture2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
-                          stream_);
-}
-
-//------------------------------------------------------------------------------
-
-template <typename T>
-CudaTexture2D<T> &CudaTexture2D<T>::operator=(const CudaTexture2D<T> &other) {
+inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(
+    const CudaTexture2D<T> &other) {
   if (this == &other) {
     return *this;
   }
@@ -257,7 +243,7 @@ CudaTexture2D<T> &CudaTexture2D<T>::operator=(const CudaTexture2D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
+inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
   cudaMemcpyToArray(shared_texture_.get_dev_array(), 0, 0, host_array,
                     sizeof(T) * width_ * height_, cudaMemcpyHostToDevice);
 
@@ -267,7 +253,7 @@ CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaTexture2D<T>::CopyTo(T *host_array) const {
+inline void CudaTexture2D<T>::CopyTo(T *host_array) const {
   cudaMemcpyFromArray(host_array, shared_texture_.get_dev_array(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
 }

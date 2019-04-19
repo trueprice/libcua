@@ -324,14 +324,14 @@ CudaArray2D<T>::~CudaArray2D<T>() {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T> CudaArray2D<T>::EmptyCopy() const {
+inline CudaArray2D<T> CudaArray2D<T>::EmptyCopy() const {
   return CudaArray2D<T>(width_, height_, block_dim_, stream_);
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T> CudaArray2D<T>::EmptyFlippedCopy() const {
+inline CudaArray2D<T> CudaArray2D<T>::EmptyFlippedCopy() const {
   return CudaArray2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
                         stream_);
 }
@@ -339,7 +339,7 @@ CudaArray2D<T> CudaArray2D<T>::EmptyFlippedCopy() const {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
+inline CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
   if (this == &other) {
     return *this;
   }
@@ -359,7 +359,7 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
+inline CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
   const size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(dev_array_ref_, pitch_, host_array, width_in_bytes,
                width_in_bytes, height_, cudaMemcpyHostToDevice);
@@ -370,10 +370,10 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaArray2D<T>::UploadPitchedArray(const int host_array_width,
-                                        const int host_array_height,
-                                        const T *host_array,
-                                        const int host_array_pitch) {
+inline void CudaArray2D<T>::UploadPitchedArray(const int host_array_width,
+                                               const int host_array_height,
+                                               const T *host_array,
+                                               const int host_array_pitch) {
   const int spitch =
       host_array_pitch <= 0 ? host_array_width : host_array_pitch;
   cudaMemcpy2D(dev_array_ref_, pitch_, host_array, spitch * sizeof(T),
@@ -386,7 +386,7 @@ void CudaArray2D<T>::UploadPitchedArray(const int host_array_width,
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaArray2D<T>::CopyTo(T *host_array) const {
+inline void CudaArray2D<T>::CopyTo(T *host_array) const {
   const size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
@@ -395,9 +395,9 @@ void CudaArray2D<T>::CopyTo(T *host_array) const {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaArray2D<T>::CopyTo(const int host_array_width,
-                            const int host_array_height, T *host_array,
-                            const int host_array_pitch) const {
+inline void CudaArray2D<T>::CopyTo(const int host_array_width,
+                                   const int host_array_height, T *host_array,
+                                   const int host_array_pitch) const {
   const int spitch =
       host_array_pitch <= 0 ? host_array_width : host_array_pitch;
   cudaMemcpy2D(host_array, spitch * sizeof(T), dev_array_ref_, pitch_,

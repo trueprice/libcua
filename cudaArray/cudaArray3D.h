@@ -297,14 +297,14 @@ CudaArray3D<T>::~CudaArray3D<T>() {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
+inline CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
   return CudaArray3D<T>(width_, height_, depth_, block_dim_, stream_);
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
+inline CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
   params.srcPtr =
@@ -322,7 +322,7 @@ CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
+inline CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
   if (this == &other) {
     return *this;
   }
@@ -340,7 +340,7 @@ CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-void CudaArray3D<T>::CopyTo(T *host_array) const {
+inline void CudaArray3D<T>::CopyTo(T *host_array) const {
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
   params.srcPtr =

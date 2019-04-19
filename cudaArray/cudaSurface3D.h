@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,10 +33,11 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_SURFACE2D_ARRAY_H_
-#define CUDA_SURFACE2D_ARRAY_H_
+#ifndef CUDA_SURFACE3D_H_
+#define CUDA_SURFACE3D_H_
 
 #include "cudaArray3DBase.h"
+#include "cudaSharedArrayObject.h"
 
 #include <memory>  // for shared_ptr
 
@@ -147,7 +148,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
-  void copyTo(Scalar *host_array) const;
+  void CopyTo(Scalar *host_array) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -243,7 +244,7 @@ CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-void CudaSurface3DBase<Derived>::copyTo(
+void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
   cudaMemcpyFromArray(host_array, surface.dev_array, 0, 0,
                       sizeof(Scalar) * width_ * height_ * depth_,
@@ -352,4 +353,4 @@ struct CudaArrayTraits<CudaSurface3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDA_SURFACE2D_ARRAY_H_
+#endif  // CUDA_SURFACE3D_H_

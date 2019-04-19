@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAMATRIX3D_H_
-#define CUDAMATRIX3D_H_
+#ifndef CUDA_ARRAY3D_H_
+#define CUDA_ARRAY3D_H_
 
 #include "cudaArray3DBase.h"
 
@@ -136,7 +136,46 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   void CopyTo(T *host_array) const;
 
   //----------------------------------------------------------------------------
+
+  /**
+   * Create a view onto the underlying CUDA memory. This function assumes that
+   * the cropped view region is valid!
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param z z-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   * @param depth depth of the view
+   * @return new CudaArray2D object whose underlying device pointer and size is
+   * aligned with the view
+   */
+  CudaArray3D<T> inline View(const size_t x, const size_t y, const size_t z,
+                             const size_t width, const size_t height,
+                             const size_t depth) const {
+    return CudaArray3D<T>(x, y, z, width, height, depth, *this);
+  }
+
+  //----------------------------------------------------------------------------
   // getters/setters
+
+  /**
+   * Device-level function for getting the address of element in an array
+   * @param x first coordinate
+   * @param y second coordinate
+   * @param z third coordinate
+   * @return pointer to the value at array(x, y, z)
+   */
+  __device__ inline T *ptr(const size_t x, const size_t y, const size_t z) {
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
+                                 (z * height_ + y) * pitch_ + x * sizeof(T));
+  }
+
+  __device__ inline const T *ptr(const size_t x, const size_t y,
+                                 const size_t z) const {
+    return reinterpret_cast<const T *>(
+        reinterpret_cast<const char *>(dev_array_ref_) +
+        (z * height_ + y) * pitch_ + x * sizeof(T));
+  }
 
   /**
    * Device-level function for setting an element in an array
@@ -147,8 +186,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline void set(const size_t x, const size_t y, const size_t z,
                              const T v) {
-    *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
-            x * sizeof(T))) = v;
+    *ptr(x, y, z) = v;
   }
 
   /**
@@ -160,16 +198,28 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   __device__ inline T get(const size_t x, const size_t y,
                           const size_t z) const {
-    return *((T *)((char *)dev_array_ref_ + (z * height_ + y) * pitch_ +
-                   x * sizeof(T)));
+    return *ptr(x, y, z);
   }
 
   //----------------------------------------------------------------------------
   // private class methods and fields
 
  private:
-  size_t pitch_;
+  /**
+   * Internal constructor used for creating views.
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param z z-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   * @param depth height of the view
+   */
+  __host__ __device__ CudaArray3D(const size_t x, const size_t y,
+                                  const size_t z, const size_t width,
+                                  const size_t height, const size_t depth,
+                                  const CudaArray2D<T> &other);
 
+  size_t pitch_;
   std::shared_ptr<T> dev_array_;
   T *dev_array_ref_;
 };
@@ -184,14 +234,17 @@ template <typename T>
 CudaArray3D<T>::CudaArray3D<T>(const size_t width, const size_t height,
                                const size_t depth, const dim3 block_dim,
                                const cudaStream_t stream)
-    : Base(width, height, depth, block_dim, stream) {
+    : Base(width, height, depth, block_dim, stream), dev_array_(nullptr) {
   cudaPitchedPtr dev_pitched_ptr;
   cudaMalloc3D(&dev_pitched_ptr,
                make_cudaExtent(sizeof(T) * width_, height_, depth_));
 
   pitch_ = dev_pitched_ptr.pitch;
-  dev_array_ref_ = (T *)dev_pitched_ptr.ptr;
+  dev_array_ref_ = reinterpret_cast<T *>(dev_pitched_ptr.ptr);
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = std::shared_ptr<T>(dev_array_ref_, cudaFree);
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -201,12 +254,29 @@ template <typename T>
 __host__ __device__ CudaArray3D<T>::CudaArray3D<T>(const CudaArray3D<T> &other)
     : Base(other),
       pitch_(other.pitch_),
-      dev_array_(nullptr),
-      dev_array_ref_(other.dev_array_ref_) {
 #ifdef __CUDA_ARCH__
+      dev_array_(nullptr),
 #else
-  dev_array_ = other.dev_array_;  // allow this only on the host device
+      dev_array_(other.dev_array_),
 #endif
+      dev_array_ref_(other.dev_array_ref_) {
+}
+
+//------------------------------------------------------------------------------
+
+// host- and device-level private constructor for creating views
+template <typename T>
+__host__ __device__ CudaArray3D<T>::CudaArray3D<T>(
+    const size_t x, const size_t y, const size_t z, const size_t width,
+    const size_t height, const size_t depth, const CudaArray2D<T> &other)
+    : Base(width, height, CudaArray2D<T>::BLOCK_DIM, other.stream_),
+      pitch_(other.pitch_),
+#ifdef __CUDA_ARCH__
+      dev_array_(nullptr),
+#else
+      dev_array_(other.dev_array_),
+#endif
+      dev_array_ref_(other.dev_array_ref_ + y * other.pitch_ + x) {
 }
 
 //------------------------------------------------------------------------------
@@ -293,4 +363,4 @@ struct CudaArrayTraits<CudaArray3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDAMATRIX3D_H_
+#endif  // CUDA_ARRAY3D_H_

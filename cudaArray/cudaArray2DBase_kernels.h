@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAARRAY2D_KERNELS_H_
-#define CUDAARRAY2D_KERNELS_H_
+#ifndef CUDA_ARRAY2D_BASE_KERNELS_H_
+#define CUDA_ARRAY2D_BASE_KERNELS_H_
 
 #include <curand.h>
 #include <curand_kernel.h>
@@ -56,7 +56,7 @@ __global__ void CudaArray2DBase_copy_kernel(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (x < src.get_width() && y < src.get_height()) {
+  if (x < src.Width() && y < src.Height()) {
     dst.set(x, y, (typename DstCls::Scalar)src.get(x, y));
   }
 }
@@ -71,7 +71,7 @@ __global__ void CudaArray2DBase_fill_kernel(CudaArrayClass mat, const T value) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (x < mat.get_width() && y < mat.get_height()) {
+  if (x < mat.Width() && y < mat.Height()) {
     mat.set(x, y, value);
   }
 }
@@ -88,7 +88,7 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
     RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
 
-  if (x < mat.get_width()) {
+  if (x < mat.Width()) {
     const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
 
     // each thread iterates down columns, so we need to offset the random state
@@ -100,7 +100,7 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
                   CudaArrayClass::BLOCK_ROWS,
               &state);
 
-    const size_t max_y = min(y + CudaArrayClass::TILE_SIZE, mat.get_height());
+    const size_t max_y = min(y + CudaArrayClass::TILE_SIZE, mat.Height());
 
     for (size_t j = y; j < max_y; j += CudaArrayClass::BLOCK_ROWS) {
       mat.set(x, j, func(&state));
@@ -149,8 +149,8 @@ __global__ void CudaArray2DBase_transpose_kernel(const SrcCls src, DstCls dst) {
   size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
   size_t y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
 
-  if (x < src.get_width()) {
-    const size_t max_y = min(y + SrcCls::TILE_SIZE, src.get_height());
+  if (x < src.Width()) {
+    const size_t max_y = min(y + SrcCls::TILE_SIZE, src.Height());
     for (size_t j = 0; (y + j) < max_y; j += SrcCls::BLOCK_ROWS) {
       tile[threadIdx.y + j][threadIdx.x] = src.get(x, y + j);
     }
@@ -162,8 +162,8 @@ __global__ void CudaArray2DBase_transpose_kernel(const SrcCls src, DstCls dst) {
   x = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.x;
   y = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y;
 
-  if (x < dst.get_width()) {
-    const size_t max_y = min(y + SrcCls::TILE_SIZE, dst.get_height());
+  if (x < dst.Width()) {
+    const size_t max_y = min(y + SrcCls::TILE_SIZE, dst.Height());
     for (size_t j = 0; (y + j) < max_y; j += SrcCls::BLOCK_ROWS) {
       dst.set(x, y + j, tile[threadIdx.x][threadIdx.y + j]);
     }
@@ -186,11 +186,11 @@ template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBase_fliplr_kernel(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
-  const size_t w = src.get_width();
+  const size_t w = src.Width();
 
   if (x < w) {
     const size_t y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
-    const size_t h = src.get_height();
+    const size_t h = src.Height();
     const size_t max_y = min(y + SrcCls::TILE_SIZE, h);
 
     for (size_t j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
@@ -205,11 +205,11 @@ template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBase_flipud_kernel(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
-  const size_t w = src.get_width();
+  const size_t w = src.Width();
 
   if (x < w) {
     const size_t y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
-    const size_t h = src.get_height();
+    const size_t h = src.Height();
     const size_t max_y = min(y + SrcCls::TILE_SIZE, h);
 
     for (size_t j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
@@ -224,11 +224,11 @@ template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBase_rot180_kernel(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
-  const size_t w = src.get_width();
+  const size_t w = src.Width();
 
   if (x < w) {
     const size_t y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
-    const size_t h = src.get_height();
+    const size_t h = src.Height();
     const size_t max_y = min(y + SrcCls::TILE_SIZE, h);
 
     for (size_t j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
@@ -246,8 +246,8 @@ __global__ void CudaArray2DBase_rot90_CCW_kernel(const SrcCls src, DstCls dst) {
   size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
   int y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
 
-  const size_t w = src.get_width();
-  const size_t h = src.get_height();
+  const size_t w = src.Width();
+  const size_t h = src.Height();
 
   if (x < w) {
     const size_t max_y = min(y + SrcCls::TILE_SIZE, h);
@@ -263,7 +263,7 @@ __global__ void CudaArray2DBase_rot90_CCW_kernel(const SrcCls src, DstCls dst) {
   y = w - 1 - (blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y);  // B to T
 
   if (x < h) {
-    const int min_y = max(y - (int)SrcCls::TILE_SIZE + 1, 0);
+    const int min_y = max(y - static_cast<int>(SrcCls::TILE_SIZE) + 1, 0);
     for (int j = 0; (y - j) >= min_y; j += SrcCls::BLOCK_ROWS) {
       dst.set(x, y - j, tile[threadIdx.x][threadIdx.y + j]);
     }
@@ -279,8 +279,8 @@ __global__ void CudaArray2DBase_rot90_CW_kernel(const SrcCls src, DstCls dst) {
   int x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
   size_t y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
 
-  const size_t w = src.get_width();
-  const size_t h = src.get_height();
+  const size_t w = src.Width();
+  const size_t h = src.Height();
 
   if (x < w) {
     const size_t max_y = min(y + SrcCls::TILE_SIZE, h);
@@ -315,11 +315,11 @@ __global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass mat,
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (x < mat.get_width() && y < mat.get_height()) {
+  if (x < mat.Width() && y < mat.Height()) {
     mat.set(x, y, op(x, y));
   }
 }
 
 }  // namespace cua
 
-#endif  // CUDAARRAY2D_KERNELS_H_
+#endif  // CUDA_ARRAY2D_BASE_KERNELS_H_

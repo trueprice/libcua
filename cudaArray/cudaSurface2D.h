@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -48,10 +48,10 @@ namespace cua {
  * @brief Surface-memory 2D array.
  *
  * This class implements an interface for 2D surface-memory arrays on the GPU.
- * These arrays are read-able and write-able, and compared to linear-memory array
- * they have better cache coherence properties for memory accesses in a 2D
- * neighborhood. Copy/assignment for CudaSurface2D objects is a shallow operation;
- * use Copy(other) to perform a deep copy.
+ * These arrays are read-able and write-able, and compared to linear-memory
+ * arrays, they have better cache coherence properties for memory accesses in a
+ * 2D neighborhood. Copy/assignment for CudaSurface2D objects is a shallow
+ * operation; use Copy(other) to perform a deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
  * kernels that have CudaSurface2D objects in their parameter lists:
@@ -138,11 +138,33 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   CudaSurface2D<T> &operator=(const T *host_array);
 
   /**
+   * Copy the contents of a CPU-bound memory array with input size to the
+   * current array. This function assumes that the CPU array has the
+   * specified by the input params.
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
+  // TODO (True): create view and remove
+  CudaSurface2D<T> &Upload(const int host_array_width,
+                           const int host_array_height, const T *host_array,
+                           const int host_array_pitch = 0);
+
+  /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
+
+  /**
+   * Copy the contents of the current array with input size to a CPU-bound
+   * memory array. This function assumes that the CPU array smaller or equal
+   * size than GPU array!
+   * @param host_array the CPU-bound array
+   */
+  // TODO (True): create view and remove
+  void CopyTo(const int host_array_width, const int host_array_height,
+              T *host_array, const int host_array_pitch = 0) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -165,8 +187,8 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    * @return the value at array(x, y)
    */
   __device__ inline T get(const int x, const int y) const {
-    return surf2Dread<T>(shared_surface_.get_cuda_api_object(), sizeof(T) * x, y,
-                         boundary_mode_);
+    return surf2Dread<T>(shared_surface_.get_cuda_api_object(), sizeof(T) * x,
+                         y, boundary_mode_);
   }
 
   /**
@@ -188,7 +210,6 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   // private class methods and fields
 
  private:
-
   CudaSharedSurfaceObject<T> shared_surface_;
 
   cudaSurfaceBoundaryMode boundary_mode_;
@@ -273,9 +294,39 @@ CudaSurface2D<T> &CudaSurface2D<T>::operator=(const CudaSurface2D<T> &other) {
 //------------------------------------------------------------------------------
 
 template <typename T>
+CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
+                                           const int host_array_height,
+                                           const T *host_array,
+                                           const int host_array_pitch) {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2DToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
+                      spitch * sizeof(T), host_array_width * sizeof(T),
+                      host_array_height, cudaMemcpyHostToDevice);
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
 void CudaSurface2D<T>::CopyTo(T *host_array) const {
   cudaMemcpyFromArray(host_array, shared_surface_.get_dev_array(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+void CudaSurface2D<T>::CopyTo(const int host_array_width,
+                              const int host_array_height, T *host_array,
+                              const int host_array_pitch) const {
+  const int dpitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+
+  cudaMemcpy2DFromArray(
+      host_array, dpitch * sizeof(T), shared_surface_.get_dev_array(), 0, 0,
+      host_array_width * sizeof(T), host_array_height, cudaMemcpyDeviceToHost);
 }
 
 }  // namespace cua

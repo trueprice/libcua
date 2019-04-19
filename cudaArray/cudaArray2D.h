@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDAARRAY2D_H_
-#define CUDAARRAY2D_H_
+#ifndef CUDA_ARRAY2D_H_
+#define CUDA_ARRAY2D_H_
 
 #include "cudaArray2DBase.h"
 
@@ -131,14 +131,65 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
   CudaArray2D<T> &operator=(const T *host_array);
 
   /**
+   * Copy the contents of a CPU-bound memory array of input size to the current
+   * array. This function assumes that the input array size is correct and
+   * smaller than size of the 2D array.
+   * @param host_array the CPU-bound array
+   * @return *this
+   */
+  // TODO (True): remove
+  void UploadPitchedArray(const int host_array_width,
+                          const int host_array_height, const T *host_array,
+                          const int host_array_pitch = 0);
+
+  /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
 
+  // TODO (True): remove
+  void CopyTo(const int host_array_width, const int host_array_height,
+              T *host_array, const int host_array_pitch = 0) const;
+
+  //----------------------------------------------------------------------------
+
+  /**
+   * Create a view onto the underlying CUDA memory. This function assumes that
+   * the cropped view region is valid!
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   * @return new CudaArray2D object whose underlying device pointer and size is
+   * aligned with the view
+   */
+  CudaArray2D<T> inline View(const size_t x, const size_t y, const size_t width,
+                             const size_t height) const {
+    return CudaArray2D<T>(x, y, width, height, *this);
+  }
+
   //----------------------------------------------------------------------------
   // getters/setters
+
+  /**
+   * Device-level function for getting the address of an element in an array
+   * @param x first coordinate, i.e., the column index in a row-major array
+   * @param y second coordinate, i.e., the row index in a row-major array
+   * @return pointer to the value at array(x, y)
+   */
+  __device__ inline T *ptr(const size_t x, const size_t y) {
+    return (reinterpret_cast<T *>(
+        ((reinterpret_cast<char *>(dev_array_ref_) + y * pitch_) +
+         x * sizeof(T))));
+  }
+
+  __device__ inline const T *ptr(const size_t x, const size_t y) const {
+    return (reinterpret_cast<const T *>(
+        ((reinterpret_cast<const char *>(dev_array_ref_) + y * pitch_) +
+         x * sizeof(T))));
+  }
 
   /**
    * Device-level function for setting an element in an array
@@ -147,7 +198,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param v the new value to assign to array(x, y)
    */
   __device__ inline void set(const size_t x, const size_t y, const T v) {
-    *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T))) = v;
+    *ptr(x, y) = v;
   }
 
   /**
@@ -157,22 +208,37 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @return the value at array(x, y)
    */
   __device__ inline T get(const size_t x, const size_t y) const {
-    return *((T *)(((char *)dev_array_ref_ + y * pitch_) + x * sizeof(T)));
+    return *ptr(x, y);
   }
 
   /**
    * Get the pitch of the array (the number of bytes in a row for a row-major
    * array).
    */
-  __host__ __device__ inline size_t get_pitch() const { return pitch_; }
+  __host__ __device__ inline size_t Pitch() const { return pitch_; }
+
+  /**
+   * Get the raw pointer to the underlying memory.
+   */
+  // TODO (True): remove?
+  __host__ __device__ inline T *get_raw_ptr() const { return dev_array_ref_; }
 
   //----------------------------------------------------------------------------
   // private class methods and fields
 
  private:
+  /**
+   * Internal constructor used for creating views.
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   */
+  __host__ __device__ CudaArray2D(const size_t x, const size_t y,
+                                  const size_t width, const size_t height,
+                                  const CudaArray2D<T> &other);
 
   size_t pitch_;
-
   std::shared_ptr<T> dev_array_;
   T *dev_array_ref_;  // equivalent to dev_array_.get(); necessary because that
                       // function is not available on the device
@@ -195,9 +261,12 @@ struct CudaArrayTraits<CudaArray2D<T>> {
 template <typename T>
 CudaArray2D<T>::CudaArray2D<T>(const size_t width, const size_t height,
                                const dim3 block_dim, const cudaStream_t stream)
-    : Base(width, height, block_dim, stream) {
+    : Base(width, height, block_dim, stream), dev_array_(nullptr) {
   cudaMallocPitch(&dev_array_ref_, &pitch_, sizeof(T) * width_, height_);
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = std::shared_ptr<T>(dev_array_ref_, cudaFree);
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -207,19 +276,41 @@ template <typename T>
 __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
     : Base(other),
       pitch_(other.pitch_),
-      dev_array_(nullptr),
-      dev_array_ref_(other.dev_array_ref_) {
 #ifdef __CUDA_ARCH__
+      dev_array_(nullptr),
 #else
-  dev_array_ = other.dev_array_;  // allow this only on the host device
+      dev_array_(other.dev_array_),
 #endif
+      dev_array_ref_(other.dev_array_ref_) {
+}
+
+//------------------------------------------------------------------------------
+
+// host- and device-level private constructor for creating views
+template <typename T>
+__host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const size_t x,
+                                                   const size_t y,
+                                                   const size_t width,
+                                                   const size_t height,
+                                                   const CudaArray2D<T> &other)
+    : Base(width, height, CudaArray2D<T>::BLOCK_DIM, other.stream_),
+      pitch_(other.pitch_),
+#ifdef __CUDA_ARCH__
+      dev_array_(nullptr),
+#else
+      dev_array_(other.dev_array_),
+#endif
+      dev_array_ref_(other.dev_array_ref_ + y * other.pitch_ + x) {
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
 CudaArray2D<T>::~CudaArray2D<T>() {
+#ifdef __CUDA_ARCH__
+#else
   dev_array_.reset();
+#endif
   dev_array_ref_ = nullptr;
 
   width_ = 0;
@@ -253,8 +344,10 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
   Base::operator=(other);
 
   pitch_ = other.pitch_;
-
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = other.dev_array_;
+#endif
   dev_array_ref_ = other.dev_array_ref_;
 
   return *this;
@@ -274,12 +367,41 @@ CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
+void CudaArray2D<T>::UploadPitchedArray(const int host_array_width,
+                                        const int host_array_height,
+                                        const T *host_array,
+                                        const int host_array_pitch) {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2D(dev_array_ref_, pitch_, host_array, spitch * sizeof(T),
+               host_array_width * sizeof(T), host_array_height,
+               cudaMemcpyHostToDevice);
+
+  return *this;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
 void CudaArray2D<T>::CopyTo(T *host_array) const {
   const size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
 }
 
+//------------------------------------------------------------------------------
+
+template <typename T>
+void CudaArray2D<T>::CopyTo(const int host_array_width,
+                            const int host_array_height, T *host_array,
+                            const int host_array_pitch) const {
+  const int spitch =
+      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
+  cudaMemcpy2D(host_array, spitch * sizeof(T), dev_array_ref_, pitch_,
+               host_array_width * sizeof(T), host_array_height,
+               cudaMemcpyDeviceToHost);
+}
+
 }  // namespace cua
 
-#endif  // CUDAARRAY2D_H_
+#endif  // CUDA_ARRAY2D_H_

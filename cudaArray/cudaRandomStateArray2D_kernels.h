@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDARANDOMSTATEARRAY2D_KERNELS_H_
-#define CUDARANDOMSTATEARRAY2D_KERNELS_H_
+#ifndef CUDA_RANDOM_STATE_ARRAY2D_KERNELS_H_
+#define CUDA_RANDOM_STATE_ARRAY2D_KERNELS_H_
 
 #include "cudaArray2D.h"
 
@@ -51,9 +51,8 @@ namespace cua {
 // CudaArray2D_init_rand: initialize a matrix of random generators
 //
 template <typename cudaRandomStateArrayClass>
-__global__ void
-CudaRandomStateArray2D_init_kernel(cudaRandomStateArrayClass mat,
-                                   const size_t seed) {
+__global__ void CudaRandomStateArray2D_init_kernel(
+    cudaRandomStateArrayClass mat, const size_t seed) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -66,6 +65,6 @@ CudaRandomStateArray2D_init_kernel(cudaRandomStateArrayClass mat,
   }
 }
 
-} // namespace cua
+}  // namespace cua
 
-#endif // CUDARANDOMSTATEARRAY2D_KERNELS_H_
+#endif  // CUDA_RANDOM_STATE_ARRAY2D_KERNELS_H_

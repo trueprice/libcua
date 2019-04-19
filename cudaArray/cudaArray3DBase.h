@@ -3,7 +3,7 @@
 //
 // BSD License
 // Copyright (C) 2017  The University of North Carolina at Chapel Hill
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -36,8 +36,8 @@
 // TODO: in the future, expand this class to support more CudaArray3D features
 // (fill, fillRandom, etc.; no need for transpose, etc., though)
 
-#ifndef CUDAARRAY3DBASE_H_
-#define CUDAARRAY3DBASE_H_
+#ifndef CUDA_ARRAY3D_BASE_H_
+#define CUDA_ARRAY3D_BASE_H_
 
 namespace cua {
 
@@ -226,29 +226,32 @@ class CudaArray3DBase {
    * @param value every element in the array is set to value
    */
   inline void Fill(const Scalar value) {
-    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>
-        (derived(), value);
+    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        derived(), value);
   }
 
   //----------------------------------------------------------------------------
   // getters/setters
 
-  __host__ __device__ inline size_t get_width() const { return width_; }
-  __host__ __device__ inline size_t get_height() const { return height_; }
-  __host__ __device__ inline size_t get_depth() const { return depth_; }
-
-  __host__ __device__ inline dim3 get_block_dim() const { return block_dim_; }
-  __host__ __device__ inline dim3 get_grid_dim() const { return grid_dim_; }
-
-  inline void set_block_dim(const dim3 block_dim) {
-    block_dim_ = block_dim;
-    grid_dim_ = dim3((int)std::ceil(float(width_) / block_dim_.x),
-                     (int)std::ceil(float(height_) / block_dim_.y),
-                     (int)std::ceil(float(depth_) / block_dim_.z));
+  __host__ __device__ inline size_t Width() const { return width_; }
+  __host__ __device__ inline size_t Height() const { return height_; }
+  __host__ __device__ inline size_t Depth() const { return depth_; }
+  __host__ __device__ inline size_t Size() const {
+    return width_ * height_ * depth_;
   }
 
-  inline cudaStream_t get_stream() const { return stream_; }
-  inline void set_stream(const cudaStream_t stream) { stream_ = stream; }
+  __host__ __device__ inline dim3 BlockDim() const { return block_dim_; }
+  __host__ __device__ inline dim3 GridDim() const { return grid_dim_; }
+
+  inline void SetBlockDim(const dim3 block_dim) {
+    block_dim_ = block_dim;
+    grid_dim_ = dim3((width_ + block_dim.x - 1) / block_dim_.x,
+                     (height_ + block_dim.y - 1) / block_dim_.y,
+                     (depth_ + block_dim.z - 1) / block_dim_.z);
+  }
+
+  inline cudaStream_t Stream() const { return stream_; }
+  inline void SetStream(const cudaStream_t stream) { stream_ = stream; }
 
   //----------------------------------------------------------------------------
   // general array operations
@@ -270,9 +273,9 @@ class CudaArray3DBase {
    *   shared memory space required
    */
   template <class Function>
-  void apply_op(Function op, const size_t shared_mem_bytes = 0) {
-    CudaArray3DBase_apply_op_kernel
-        <<<grid_dim_, block_dim_, shared_mem_bytes, stream_>>>(derived(), op);
+  void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
+                                      stream_>>>(derived(), op);
   }
 
   //----------------------------------------------------------------------------
@@ -348,6 +351,6 @@ OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
   return other;
 }
 
-} // namespace cua
+}  // namespace cua
 
-#endif // CUDAARRAY3DBASE_H_
+#endif  // CUDA_ARRAY3D_BASE_H_

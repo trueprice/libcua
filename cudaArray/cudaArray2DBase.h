@@ -48,6 +48,15 @@ namespace cua {
 template <typename Derived>
 struct CudaArrayTraits;  // forward declaration
 
+// Convenience macro for using SFINAE to disable operations given non-writable
+// subclasses.
+#define ENABLE_IF_MUTABLE                       \
+  template <class C = CudaArrayTraits<Derived>, \
+            typename C::Mutable is_mutable = true>
+// This is used in out-of-class definitions.
+#define ENABLE_IF_MUTABLE_IMPL \
+  template <class C, typename C::Mutable is_mutable>
+
 /**
  * @class CudaArray2DBase
  * @brief Base class for all 2D CudaArray-type objects.
@@ -155,6 +164,8 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array.
    */
+  // TODO (True): specialize in subclasses when type does?
+  ENABLE_IF_MUTABLE
   inline Derived Copy() const {
     Derived result = derived().EmptyCopy();
     Copy(result);
@@ -164,6 +175,7 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array, flipped along the horizontal axis.
    */
+  ENABLE_IF_MUTABLE
   inline Derived FlipLR() const {
     Derived result = derived().EmptyCopy();
     FlipLR(result);
@@ -173,6 +185,7 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array, flipped along the vertical axis.
    */
+  ENABLE_IF_MUTABLE
   inline Derived FlipUD() const {
     Derived result = derived().EmptyCopy();
     FlipUD(result);
@@ -182,6 +195,7 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array, rotated 180 degrees.
    */
+  ENABLE_IF_MUTABLE
   inline Derived Rot180() const {
     Derived result = derived().EmptyCopy();
     Rot180(result);
@@ -192,6 +206,7 @@ class CudaArray2DBase {
    * @return a new copy of the current array, rotated 90 degrees
    * counterclockwise.
    */
+  ENABLE_IF_MUTABLE
   inline Derived Rot90_CCW() const {
     Derived result = derived().EmptyFlippedCopy();
     Rot90_CCW(result);
@@ -201,6 +216,7 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array, rotated 90 degrees clockwise.
    */
+  ENABLE_IF_MUTABLE
   inline Derived Rot90_CW() const {
     Derived result = derived().EmptyFlippedCopy();
     Rot90_CW(result);
@@ -210,6 +226,7 @@ class CudaArray2DBase {
   /**
    * @return a new transposed copy of the current array.
    */
+  ENABLE_IF_MUTABLE
   inline Derived Transpose() const {
     Derived result = derived().EmptyFlippedCopy();
     Transpose(result);
@@ -224,7 +241,8 @@ class CudaArray2DBase {
    * @ param other output array
    * @return other
    */
-  template <typename OtherDerived>  // allow copies to other scalar types
+  template <typename OtherDerived,
+            typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
   OtherDerived &Copy(OtherDerived &other) const;
 
   /**
@@ -232,6 +250,7 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &FlipLR(Derived &other) const;
 
   /**
@@ -239,6 +258,7 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &FlipUD(Derived &other) const;
 
   /**
@@ -246,6 +266,7 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &Rot180(Derived &other) const;
 
   /**
@@ -253,6 +274,7 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &Rot90_CCW(Derived &other) const;
 
   /**
@@ -260,6 +282,7 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &Rot90_CW(Derived &other) const;
 
   /**
@@ -267,12 +290,14 @@ class CudaArray2DBase {
    * @param other output array
    * @return other
    */
+  ENABLE_IF_MUTABLE
   Derived &Transpose(Derived &other) const;
 
   /**
    * Fill the array with a constant value.
    * @param value every element in the array is set to value
    */
+  ENABLE_IF_MUTABLE
   inline void Fill(const Scalar value) {
     CudaArray2DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
         derived(), value);
@@ -324,6 +349,7 @@ class CudaArray2DBase {
    * @param y second coordinate, i.e., the row index in a row-major array
    * @param v the new value to assign to array(x, y)
    */
+  ENABLE_IF_MUTABLE
   inline void SetValue(const size_t x, const size_t y, const Scalar value) {
     if (x >= width_ || y >= height_) {
       throw "Error: CudaArray2DBase Address out of bounds in SetValue().";
@@ -370,6 +396,7 @@ class CudaArray2DBase {
    * @param shared_mem_bytes if `op()` uses shared memory, the size of the
    *   shared memory space required
    */
+  // TODO
   template <class Function>
   inline void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
     CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
@@ -380,6 +407,7 @@ class CudaArray2DBase {
    * Element-wise addition.
    * @param value value to add to each array element
    */
+  ENABLE_IF_MUTABLE
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
     CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
@@ -392,12 +420,14 @@ class CudaArray2DBase {
    * Element-wise subtraction.
    * @param value value to subtract from each array element
    */
+  ENABLE_IF_MUTABLE
   inline void operator-=(const Scalar value) { operator+=(-value); }
 
   /**
    * Element-wise multiplication.
    * @param value value by which to multiply each array element
    */
+  ENABLE_IF_MUTABLE
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
     CudaArray2DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
@@ -410,6 +440,7 @@ class CudaArray2DBase {
    * Element-wise division.
    * @param value value by which to divide each array element.
    */
+  ENABLE_IF_MUTABLE
   inline void operator/=(const Scalar value) { operator*=(Scalar(1.) / value); }
 
   //----------------------------------------------------------------------------
@@ -475,7 +506,8 @@ CudaArray2DBase<Derived> &CudaArray2DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-template <typename OtherDerived>
+template <typename OtherDerived,
+          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
 OtherDerived &CudaArray2DBase<Derived>::Copy(OtherDerived &other) const {
   if (this != &other) {
     if (width_ != other.width_ || height_ != other.height_) {
@@ -513,6 +545,7 @@ void CudaArray2DBase<Derived>::FillRandom(curandStateArrayClass rand_state,
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::FlipLR(Derived &other) const {
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
@@ -531,6 +564,7 @@ Derived &CudaArray2DBase<Derived>::FlipLR(Derived &other) const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::FlipUD(Derived &other) const {
   const dim3 block_dim = dim3(CudaArray2DBase<Derived>::TILE_SIZE,
                               CudaArray2DBase<Derived>::BLOCK_ROWS);
@@ -549,6 +583,7 @@ Derived &CudaArray2DBase<Derived>::FlipUD(Derived &other) const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::Rot180(Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
@@ -570,6 +605,7 @@ Derived &CudaArray2DBase<Derived>::Rot180(Derived &other) const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::Rot90_CCW(Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
@@ -594,6 +630,7 @@ Derived &CudaArray2DBase<Derived>::Rot90_CCW(Derived &other) const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::Rot90_CW(Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
@@ -618,6 +655,7 @@ Derived &CudaArray2DBase<Derived>::Rot90_CW(Derived &other) const {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
+ENABLE_IF_MUTABLE_IMPL
 Derived &CudaArray2DBase<Derived>::Transpose(Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
@@ -638,6 +676,8 @@ Derived &CudaArray2DBase<Derived>::Transpose(Derived &other) const {
 
   return other;
 }
+
+#undef ENABLE_IF_MUTABLE
 
 }  // namespace cua
 

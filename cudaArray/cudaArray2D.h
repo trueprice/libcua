@@ -252,6 +252,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
 template <typename T>
 struct CudaArrayTraits<CudaArray2D<T>> {
   typedef T Scalar;
+  typedef bool Mutable;
 };
 
 //------------------------------------------------------------------------------

@@ -72,6 +72,7 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
 
   typedef CudaArray2DBase<CudaSurface2D<T>> Base;
 
+ protected:
   // for convenience, reference base class members directly (they are otherwise
   // not in the current scope because CudaArray2DBase is templated)
   using Base::width_;
@@ -80,6 +81,7 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   using Base::grid_dim_;
   using Base::stream_;
 
+ public:
   //----------------------------------------------------------------------------
   // constructors and destructor
 

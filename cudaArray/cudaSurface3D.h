@@ -79,6 +79,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
 
   typedef CudaArray3DBase<Derived> Base;
 
+ protected:
   // for convenience, reference base class members directly (they are otherwise
   // not in the current scope because CudaArray2DBase is templated)
   using Base::width_;
@@ -88,6 +89,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   using Base::grid_dim_;
   using Base::stream_;
 
+ public:
   //----------------------------------------------------------------------------
   // constructors and destructor
 

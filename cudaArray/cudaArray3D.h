@@ -70,6 +70,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
 
   typedef CudaArray3DBase<CudaArray3D<T>> Base;
 
+ protected:
   // for convenience, reference protected base class members directly (they are
   // otherwise not in the current scope because CudaArray3DBase is templated)
   using Base::width_;
@@ -79,6 +80,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   using Base::grid_dim_;
   using Base::stream_;
 
+ public:
   //----------------------------------------------------------------------------
   // constructors and destructor
 

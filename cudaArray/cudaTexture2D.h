@@ -61,8 +61,6 @@ namespace cua {
  *       out.set(x, y, in.get(x, y));
  *     }
  *
- * TODO (True): this class needs explicit compiler error messages when using
- *   set(), etc.
  * TODO (True): mipmaps, etc. would be useful, as well as texture-coordinate
  *   lookups, etc.
  */

@@ -41,6 +41,15 @@
 
 namespace cua {
 
+// Convenience macro for using SFINAE to disable operations given non-writable
+// subclasses.
+#define ENABLE_IF_MUTABLE                       \
+  template <class C = CudaArrayTraits<Derived>, \
+            typename C::Mutable is_mutable = true>
+// This is used in out-of-class definitions.
+#define ENABLE_IF_MUTABLE_IMPL \
+  template <class C, typename C::Mutable is_mutable>
+
 //
 // kernel definitions
 // TODO: once we have more kernel functions, move them to a separate file
@@ -108,23 +117,29 @@ struct CudaArrayTraits;  // forward declaration
  * @brief Base class for all 3D CudaArray-type objects.
  *
  * This class includes implementations for Copy, etc.
- * All derived classes need to define the following members:
+ * All derived classes need to define the following methods:
  *
- * 1. copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
- *    perform host-specific instructions
- *    - `__host__ __device__ Derived(const Derived &other);`
- * 2. EmptyCopy(): to create a new array of the same size
- *    - `Derived EmptyCopy() const;`
- * 3. set(): write to array position (optional for readonly subclasses)
- *    - `__device__ inline void set(const size_t x, const size_t y,
- *                                  const size_t z, Scalar value);`
- * 4. get(): read from array position
- *    - `__device__
- *    inline Scalar get(const size_t x, const size_t y, const size_t z) const;`
- * 5. operator=(): suggested to have this for getting data from the CPU
+ * - copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
+ *   perform host-specific instructions
+ *   - `__host__ __device__ Derived(const Derived &other);`
+ * - get(): read from array position
+ *   - `__device__
+ *   inline Scalar get(const size_t x, const size_t y, const size_t z) const;`
+ *
+ * These methods are suggested for getting data to/from the CPU:
+ *
+ * - operator=()
  *   - `Derived &operator=(const Scalar *host_array);`
- * 6. CopyTo(): suggested to have this for getting data to the CPU
- *    - `void CopyTo(Scalar *host_array) const;`
+ * - CopyTo()
+ *   - `void CopyTo(Scalar *host_array) const;`
+ *
+ * These methods are necessary for derived classes that are read-write:
+ *
+ * - EmptyCopy(): to create a new array of the same size
+ *   - `Derived EmptyCopy() const;`
+ * - set(): write to array position (optional for readonly subclasses)
+ *   - `__device__ inline void set(const size_t x, const size_t y,
+ *                                 const size_t z, Scalar value);`
  *
  * Also, any derived class will need to separately declare a CudaArrayTraits
  * struct instantiation with a "Scalar" member, e.g.,
@@ -132,6 +147,7 @@ struct CudaArrayTraits;  // forward declaration
  *     template <typename T>
  *     struct CudaArrayTraits<Derived<T>> {
  *       typedef T Scalar;
+ *       typedef bool Mutable;  // defined for read-write derived classes
  *     };
  */
 template <typename Derived>
@@ -204,6 +220,8 @@ class CudaArray3DBase {
   /**
    * @return a new copy of the current array.
    */
+  // TODO (True): specialize in subclasses when type is not mutable?
+  ENABLE_IF_MUTABLE
   Derived Copy() const {
     Derived result = derived().EmptyCopy();
     Copy(result);
@@ -218,13 +236,15 @@ class CudaArray3DBase {
    * @ param other output array
    * @return other
    */
-  template <typename OtherDerived>  // allow copies to other scalar types
+  template <typename OtherDerived,
+            typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
   OtherDerived &Copy(OtherDerived &other) const;
 
   /**
    * Fill the array with a constant value.
    * @param value every element in the array is set to value
    */
+  ENABLE_IF_MUTABLE
   inline void Fill(const Scalar value) {
     CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
         derived(), value);
@@ -272,7 +292,8 @@ class CudaArray3DBase {
    * @param shared_mem_bytes if `op()` uses shared memory, the size of the
    *   shared memory space required
    */
-  template <class Function>
+  template <class Function, class C = CudaArrayTraits<Derived>,
+            typename C::Mutable is_mutable = true>
   void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
     CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
                                       stream_>>>(derived(), op);
@@ -317,7 +338,7 @@ CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const size_t width,
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
+inline CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
     const CudaArray3DBase<Derived> &other) {
   if (this == &other) {
     return *this;
@@ -337,8 +358,9 @@ CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-template <typename OtherDerived>
-OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
+template <typename OtherDerived,
+          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
+inline OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
   if (this != &other) {
     if (width_ != other.width_ || height_ != other.height_ ||
         depth_ != other.depth_) {
@@ -350,6 +372,9 @@ OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
 
   return other;
 }
+
+#undef ENABLE_IF_MUTABLE
+#undef ENABLE_IF_MUTABLE_IMPL
 
 }  // namespace cua
 

@@ -344,12 +344,14 @@ class CudaSurface3D : public CudaSurface3DBase<CudaSurface3D<T>> {
 template <typename T>
 struct CudaArrayTraits<CudaSurface2DArray<T>> {
   typedef T Scalar;
+  typedef bool Mutable;
   static const bool IS_LAYERED = true;
 };
 
 template <typename T>
 struct CudaArrayTraits<CudaSurface3D<T>> {
   typedef T Scalar;
+  typedef bool Mutable;
   static const bool IS_LAYERED = false;
 };
 

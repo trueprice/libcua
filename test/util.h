@@ -40,10 +40,6 @@
  * CUDA doesn't define standard operators for its vector datatypes.
  */
 
-inline bool operator==(const uchar4 &a, const uchar4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
 inline bool operator==(const float2 &a, const float2 &b) {
   return a.x == b.x && a.y == b.y;
 }
@@ -56,11 +52,65 @@ inline bool operator==(const float4 &a, const float4 &b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
+inline bool operator==(const uchar2 &a, const uchar2 &b) {
+  return a.x == b.x && a.y == b.y;
+}
+
+inline bool operator==(const uchar3 &a, const uchar3 &b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool operator==(const uchar4 &a, const uchar4 &b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+inline bool operator==(const uint2 &a, const uint2 &b) {
+  return a.x == b.x && a.y == b.y;
+}
+
+inline bool operator==(const uint3 &a, const uint3 &b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool operator==(const uint4 &a, const uint4 &b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
 //------------------------------------------------------------------------------
 
 inline float4 operator+(const float4 &a, const float4 &b) {
   return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
+
+//------------------------------------------------------------------------------
+// Allow for safely casting primitives to vector-valued types.
+
+template <typename ScalarType>
+struct PrimitiveConverter {
+  template <typename T>
+  static inline ScalarType AsScalar(T value) {
+    return static_cast<ScalarType>(value);
+  }
+};
+
+#define SPECIALIZE_PRIMITIVE(TYPE, PRIMITIVE_TYPE)     \
+  template <>                                          \
+  struct PrimitiveConverter<TYPE> {                    \
+    template <typename T>                              \
+    static inline TYPE AsScalar(T value) {             \
+      return TYPE{static_cast<PRIMITIVE_TYPE>(value)}; \
+    }                                                  \
+  };
+SPECIALIZE_PRIMITIVE(float2, float)
+SPECIALIZE_PRIMITIVE(float3, float)
+SPECIALIZE_PRIMITIVE(float4, float)
+SPECIALIZE_PRIMITIVE(uchar2, unsigned char)
+SPECIALIZE_PRIMITIVE(uchar3, unsigned char)
+SPECIALIZE_PRIMITIVE(uchar4, unsigned char)
+SPECIALIZE_PRIMITIVE(uint2, unsigned int)
+SPECIALIZE_PRIMITIVE(uint3, unsigned int)
+SPECIALIZE_PRIMITIVE(uint4, unsigned int)
+#undef SPECIALIZE_PRIMITIVE
 
 //------------------------------------------------------------------------------
 // Error checking

@@ -167,13 +167,15 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * @param z third coordinate
    * @return pointer to the value at array(x, y, z)
    */
-  __device__ inline T *ptr(const size_t x, const size_t y, const size_t z) {
+  __host__ __device__ inline T *ptr(const size_t x = 0, const size_t y = 0,
+                                    const size_t z = 0) {
     return reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
                                  (z * height_ + y) * pitch_ + x * sizeof(T));
   }
 
-  __device__ inline const T *ptr(const size_t x, const size_t y,
-                                 const size_t z) const {
+  __host__ __device__ inline const T *ptr(const size_t x = 0,
+                                          const size_t y = 0,
+                                          const size_t z = 0) const {
     return reinterpret_cast<const T *>(
         reinterpret_cast<const char *>(dev_array_ref_) +
         (z * height_ + y) * pitch_ + x * sizeof(T));
@@ -216,10 +218,9 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * @param height height of the view
    * @param depth height of the view
    */
-  __host__ __device__ CudaArray3D(const size_t x, const size_t y,
-                                  const size_t z, const size_t width,
-                                  const size_t height, const size_t depth,
-                                  const CudaArray2D<T> &other);
+  CudaArray3D(const size_t x, const size_t y, const size_t z,
+              const size_t width, const size_t height, const size_t depth,
+              const CudaArray3D<T> &other);
 
   size_t pitch_;
   std::shared_ptr<T> dev_array_;
@@ -268,17 +269,17 @@ __host__ __device__ CudaArray3D<T>::CudaArray3D<T>(const CudaArray3D<T> &other)
 
 // host- and device-level private constructor for creating views
 template <typename T>
-__host__ __device__ CudaArray3D<T>::CudaArray3D<T>(
-    const size_t x, const size_t y, const size_t z, const size_t width,
-    const size_t height, const size_t depth, const CudaArray2D<T> &other)
-    : Base(width, height, CudaArray2D<T>::BLOCK_DIM, other.stream_),
+CudaArray3D<T>::CudaArray3D<T>(const size_t x, const size_t y, const size_t z,
+                               const size_t width, const size_t height,
+                               const size_t depth, const CudaArray3D<T> &other)
+    : Base(width, height, other.block_dim_, other.stream_),
       pitch_(other.pitch_),
 #ifdef __CUDA_ARCH__
       dev_array_(nullptr),
 #else
       dev_array_(other.dev_array_),
 #endif
-      dev_array_ref_(other.dev_array_ref_ + y * other.pitch_ + x) {
+      dev_array_ref_(const_cast<T *>(other.ptr(x, y, z))) {
 }
 
 //------------------------------------------------------------------------------

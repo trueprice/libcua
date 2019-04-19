@@ -102,6 +102,7 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
    * @param stream CUDA stream for this array object
    *   extents of the array
    */
+  // TODO (True): normalizedCoords
   CudaTexture2D(
       const size_t width, const size_t height,
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,

@@ -181,16 +181,16 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param y second coordinate, i.e., the row index in a row-major array
    * @return pointer to the value at array(x, y)
    */
-  __device__ inline T *ptr(const size_t x, const size_t y) {
-    return (reinterpret_cast<T *>(
-        ((reinterpret_cast<char *>(dev_array_ref_) + y * pitch_) +
-         x * sizeof(T))));
+  __host__ __device__ inline T *ptr(const size_t x = 0, const size_t y = 0) {
+    return reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
+                                 y * pitch_ + x * sizeof(T));
   }
 
-  __device__ inline const T *ptr(const size_t x, const size_t y) const {
-    return (reinterpret_cast<const T *>(
-        ((reinterpret_cast<const char *>(dev_array_ref_) + y * pitch_) +
-         x * sizeof(T))));
+  __host__ __device__ inline const T *ptr(const size_t x = 0,
+                                          const size_t y = 0) const {
+    return reinterpret_cast<const T *>(
+        reinterpret_cast<const char *>(dev_array_ref_) + y * pitch_ +
+        x * sizeof(T));
   }
 
   /**
@@ -222,7 +222,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
   /**
    * Get the raw pointer to the underlying memory.
    */
-  // TODO (True): remove?
+  // TODO (True): remove
   __host__ __device__ inline T *get_raw_ptr() const { return dev_array_ref_; }
 
   //----------------------------------------------------------------------------
@@ -236,9 +236,8 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param width width of the view
    * @param height height of the view
    */
-  __host__ __device__ CudaArray2D(const size_t x, const size_t y,
-                                  const size_t width, const size_t height,
-                                  const CudaArray2D<T> &other);
+  CudaArray2D(const size_t x, const size_t y, const size_t width,
+              const size_t height, const CudaArray2D<T> &other);
 
   size_t pitch_;
   std::shared_ptr<T> dev_array_;
@@ -291,19 +290,17 @@ __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
 
 // host- and device-level private constructor for creating views
 template <typename T>
-__host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const size_t x,
-                                                   const size_t y,
-                                                   const size_t width,
-                                                   const size_t height,
-                                                   const CudaArray2D<T> &other)
-    : Base(width, height, CudaArray2D<T>::BLOCK_DIM, other.stream_),
+CudaArray2D<T>::CudaArray2D<T>(const size_t x, const size_t y,
+                               const size_t width, const size_t height,
+                               const CudaArray2D<T> &other)
+    : Base(width, height, other.block_dim_, other.stream_),
       pitch_(other.pitch_),
 #ifdef __CUDA_ARCH__
       dev_array_(nullptr),
 #else
       dev_array_(other.dev_array_),
 #endif
-      dev_array_ref_(other.dev_array_ref_ + y * other.pitch_ + x) {
+      dev_array_ref_(const_cast<T *>(other.ptr(x, y))) {
 }
 
 //------------------------------------------------------------------------------

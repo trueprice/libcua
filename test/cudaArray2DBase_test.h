@@ -50,15 +50,24 @@ namespace test {
 // (this was unfortunately the only way I could get it to compile), so I went
 // ahead and moved all the test functionality to this class.
 template <typename CudaArrayType>
-struct CudaArray2DTestWrapper {
+class CudaArray2DTestWrapper
+    : public PrimitiveConverter<typename CudaArrayType::Scalar> {
+ public:
+  typedef typename CudaArrayType::Scalar Scalar;
+  using PrimitiveConverter<Scalar>::AsScalar;
+
+  //----------------------------------------------------------------------------
+
   CudaArray2DTestWrapper(size_t width = 10, size_t height = 10)
-      : array(width, height), result(width * height) {}
+      : array_(width, height) {}
 
   //----------------------------------------------------------------------------
 
   template <typename HostFunction>
-  void DownloadAndCheck(const HostFunction& host_function) {
+  static void DownloadAndCheck(const CudaArrayType& array,
+                               const HostFunction& host_function) {
     CUDA_CHECK_ERROR
+    std::vector<Scalar> result(array.Size());
     array.CopyTo(result.data());
     CUDA_CHECK_ERROR
 
@@ -70,61 +79,93 @@ struct CudaArray2DTestWrapper {
     }
   }
 
+  template <typename HostFunction>
+  void DownloadAndCheck(const HostFunction& host_function) {
+    DownloadAndCheck(array_, host_function);
+  }
+
   //----------------------------------------------------------------------------
 
-  void CheckFill(typename CudaArrayType::Scalar value) {
-    array.Fill(value);
+  void CheckView() {
+    array_.Fill(AsScalar(0));
+    CUDA_CHECK_ERROR
+    ASSERT_GT(array_.Height(), 1);
+    for (size_t col = 0; col < array_.Width(); ++col) {
+      auto view = array_.View(col, 1, 1, array_.Height());
+      view.Fill(AsScalar(col));
+      CUDA_CHECK_ERROR
+    }
+    DownloadAndCheck(
+        [](size_t x, size_t y) { return AsScalar((y > 0) ? x : 0); });
+  }
+
+  //----------------------------------------------------------------------------
+
+  void CheckViewDownload() {
+    array_.Fill(AsScalar(0));
+    CUDA_CHECK_ERROR
+    ASSERT_GT(array_.Width(), 2);
+    ASSERT_GT(array_.Height(), 2);
+    auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
+    view.ApplyOp([] __device__(size_t x, size_t y) { return AsScalar(x + y); });
+    DownloadAndCheck(view, [](size_t x, size_t y) { return AsScalar(x + y); });
+  }
+
+  //----------------------------------------------------------------------------
+
+  void CheckFill(Scalar value) {
+    array_.Fill(value);
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckInPlaceAdd(typename CudaArrayType::Scalar value) {
-    array.Fill(0.);
+  void CheckInPlaceAdd(Scalar value) {
+    array_.Fill(0.);
     CUDA_CHECK_ERROR
-    array += value;
+    array_ += value;
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
-    array += value;
+    array_ += value;
     DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckInPlaceSubtract(typename CudaArrayType::Scalar value) {
-    array.Fill(value + value);
+  void CheckInPlaceSubtract(Scalar value) {
+    array_.Fill(value + value);
     CUDA_CHECK_ERROR
-    array -= value;
+    array_ -= value;
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
-    array -= value;
+    array_ -= value;
     DownloadAndCheck([=](size_t x, size_t y) { return 0; });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckInPlaceMultiply(typename CudaArrayType::Scalar value) {
-    array.Fill(1.);
+  void CheckInPlaceMultiply(Scalar value) {
+    array_.Fill(1.);
     CUDA_CHECK_ERROR
-    array *= value;
+    array_ *= value;
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
-    array *= value;
+    array_ *= value;
     DownloadAndCheck([=](size_t x, size_t y) { return value * value; });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckInPlaceDivide(typename CudaArrayType::Scalar value) {
-    array.Fill(value * value);
+  void CheckInPlaceDivide(Scalar value) {
+    array_.Fill(value * value);
     CUDA_CHECK_ERROR
-    array /= value;
+    array_ /= value;
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
-    array /= value;
+    array_ /= value;
     DownloadAndCheck([=](size_t x, size_t y) { return 1; });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckApplyOpConstant(typename CudaArrayType::Scalar value) {
-    array.ApplyOp([=] __device__(size_t x, size_t y) { return value; });
+  void CheckApplyOpConstant(Scalar value) {
+    array_.ApplyOp([=] __device__(size_t x, size_t y) { return value; });
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
   }
 
@@ -133,33 +174,32 @@ struct CudaArray2DTestWrapper {
   void CheckApplyOpLinear() {
     // Note the *this capture!
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
-    array.ApplyOp([=, *this] __device__(size_t x, size_t y) {
-      return static_cast<typename CudaArrayType::Scalar>(y * array.Width() + x);
+    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
+      return AsScalar(y * array_.Width() + x);
     });
     DownloadAndCheck([=](size_t x, size_t y) {
-      return static_cast<typename CudaArrayType::Scalar>(y * array.Width() + x);
+      return AsScalar(y * array_.Width() + x);
     });
   }
 
   //----------------------------------------------------------------------------
 
-  void CheckApplyOpUpdate(typename CudaArrayType::Scalar value) {
+  void CheckApplyOpUpdate(Scalar value) {
     // Note the *this capture!
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
-    array.Fill(value);
+    array_.Fill(value);
     CUDA_CHECK_ERROR
-    array.ApplyOp([=, *this] __device__(size_t x, size_t y) {
-      return value + array.get(x, y);
+    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
+      return value + array_.get(x, y);
     });
     DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
 
-  CudaArrayType array;
-  std::vector<typename CudaArrayType::Scalar> result;
+ private:
+  CudaArrayType array_;
 };
-
 
 }  // namespace test
 

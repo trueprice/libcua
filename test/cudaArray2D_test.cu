@@ -51,6 +51,16 @@ namespace {
 
 //------------------------------------------------------------------------------
 
+TEST(CudaArray2DTest, TestUpload) {
+#define TYPE_TEST(TYPE)                                                \
+  {                                                                    \
+    cua::test::CudaArray2DTestWrapper<cua::CudaArray2D<TYPE>> wrapper; \
+    wrapper.CheckUpload();                                             \
+  }
+  TYPE_TESTS
+#undef TYPE_TEST
+}
+
 TEST(CudaArray2DTest, TestView) {
 #define TYPE_TEST(TYPE)                                                \
   {                                                                    \

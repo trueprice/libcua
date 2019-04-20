@@ -156,6 +156,19 @@ class CudaArray2DTestWrapper
 
   //----------------------------------------------------------------------------
 
+  void CheckUpload() {
+    std::vector<Scalar> data(array_.Size());
+    for (size_t i = 0; i < array_.Size(); ++i) {
+      data[i] = AsScalar(i);
+    }
+    array_ = data.data();
+    DownloadAndCheck([=](size_t x, size_t y) {
+      return AsScalar(y * array_.Width() + x);
+    });
+  }
+
+  //----------------------------------------------------------------------------
+
   void CheckFill(Scalar value) {
     array_.Fill(value);
     DownloadAndCheck([=](size_t x, size_t y) { return value; });

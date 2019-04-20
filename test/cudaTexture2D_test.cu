@@ -42,9 +42,26 @@
 
 namespace {
 
-TEST(CudaTexture2D, Test) {
-  cua::CudaTexture2D<float> array(10, 10);
-  //array.Fill(0.f);
+#define TYPE_TESTS                                                \
+  TYPE_TEST(float)                                                \
+  TYPE_TEST(float2) TYPE_TEST(float4) TYPE_TEST(unsigned char)    \
+      TYPE_TEST(uchar2) TYPE_TEST(uchar4) TYPE_TEST(unsigned int) \
+          TYPE_TEST(uint2) TYPE_TEST(uint4)
+
+//------------------------------------------------------------------------------
+
+TEST(CudaTexture2DTest, TestUpload) {
+#define TYPE_TEST(TYPE)                                                  \
+  {                                                                      \
+    cua::test::CudaArray2DTestWrapper<cua::CudaTexture2D<TYPE>> wrapper; \
+    wrapper.CheckUpload();                                               \
+  }
+  TYPE_TESTS
+#undef TYPE_TEST
 }
+
+//------------------------------------------------------------------------------
+
+#undef TYPE_TESTS
 
 }  // namespace

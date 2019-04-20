@@ -110,6 +110,21 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
 
   ~CudaSurface2D() {}
 
+  /**
+   * Create a view onto the underlying CUDA memory. This function assumes that
+   * the cropped view region is valid!
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   * @return new CudaSurface2D view whose underlying device pointer and size is
+   * aligned with the view
+   */
+  CudaSurface2D<T> inline View(const size_t x, const size_t y,
+                               const size_t width, const size_t height) const {
+    return CudaSurface2D<T>(x, y, width, height, *this);
+  }
+
   //----------------------------------------------------------------------------
   // array operations
 
@@ -140,33 +155,11 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   CudaSurface2D<T> &operator=(const T *host_array);
 
   /**
-   * Copy the contents of a CPU-bound memory array with input size to the
-   * current array. This function assumes that the CPU array has the
-   * specified by the input params.
-   * @param host_array the CPU-bound array
-   * @return *this
-   */
-  // TODO (True): create view and remove
-  CudaSurface2D<T> &Upload(const int host_array_width,
-                           const int host_array_height, const T *host_array,
-                           const int host_array_pitch = 0);
-
-  /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
-
-  /**
-   * Copy the contents of the current array with input size to a CPU-bound
-   * memory array. This function assumes that the CPU array smaller or equal
-   * size than GPU array!
-   * @param host_array the CPU-bound array
-   */
-  // TODO (True): create view and remove
-  void CopyTo(const int host_array_width, const int host_array_height,
-              T *host_array, const int host_array_pitch = 0) const;
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -178,8 +171,8 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    * @param v the new value to assign to array(x, y)
    */
   __device__ inline void set(const int x, const int y, const T v) {
-    surf2Dwrite(v, shared_surface_.get_cuda_api_object(), sizeof(T) * x, y,
-                boundary_mode_);
+    surf2Dwrite(v, shared_surface_.get_cuda_api_object(),
+                sizeof(T) * (x + x_offset_), y + y_offset_, boundary_mode_);
   }
 
   /**
@@ -189,21 +182,22 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    * @return the value at array(x, y)
    */
   __device__ inline T get(const int x, const int y) const {
-    return surf2Dread<T>(shared_surface_.get_cuda_api_object(), sizeof(T) * x,
-                         y, boundary_mode_);
+    return surf2Dread<T>(shared_surface_.get_cuda_api_object(),
+                         sizeof(T) * (x + x_offset_), y + y_offset_,
+                         boundary_mode_);
   }
 
   /**
    * @return the boundary mode for the underlying CUDA Surface object
    */
-  __host__ __device__ inline cudaSurfaceBoundaryMode get_boundary_mode() const {
+  __host__ __device__ inline cudaSurfaceBoundaryMode BoundaryMode() const {
     return boundary_mode_;
   }
 
   /**
    * set the boundary mode for the underlying CUDA Surface object
    */
-  __host__ __device__ inline void set_boundary_mode(
+  __host__ __device__ inline void SetBoundaryMode(
       const cudaSurfaceBoundaryMode boundary_mode) {
     boundary_mode_ = boundary_mode;
   }
@@ -212,9 +206,21 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   // private class methods and fields
 
  private:
+  /**
+   * Internal constructor used for creating views.
+   * @param x x-coordinate for the top left of the view
+   * @param y y-coordinate for the top left of the view
+   * @param width width of the view
+   * @param height height of the view
+   */
+  CudaSurface2D(const size_t x, const size_t y, const size_t width,
+                const size_t height, const CudaSurface2D<T> &other);
+
   CudaSharedSurfaceObject<T> shared_surface_;
 
   cudaSurfaceBoundaryMode boundary_mode_;
+
+  size_t x_offset_, y_offset_;  // = 0 if not using a view
 };
 
 //------------------------------------------------------------------------------
@@ -239,7 +245,9 @@ CudaSurface2D<T>::CudaSurface2D<T>(const size_t width, const size_t height,
                                    const cudaSurfaceBoundaryMode boundary_mode)
     : Base(width, height, block_dim, stream),
       boundary_mode_(boundary_mode),
-      shared_surface_(width, height) {}
+      shared_surface_(width, height),
+      x_offset_(0),
+      y_offset_(0) {}
 
 //------------------------------------------------------------------------------
 
@@ -249,7 +257,22 @@ __host__ __device__
 CudaSurface2D<T>::CudaSurface2D<T>(const CudaSurface2D<T> &other)
     : Base(other),
       boundary_mode_(other.boundary_mode_),
-      shared_surface_(other.shared_surface_) {}
+      shared_surface_(other.shared_surface_),
+      x_offset_(other.x_offset_),
+      y_offset_(other.y_offset_) {}
+
+//------------------------------------------------------------------------------
+
+// host-level private constructor for creating views
+template <typename T>
+CudaSurface2D<T>::CudaSurface2D<T>(const size_t x, const size_t y,
+                                   const size_t width, const size_t height,
+                                   const CudaSurface2D<T> &other)
+    : Base(width, height, other.block_dim_, other.stream_),
+      boundary_mode_(other.boundary_mode_),
+      shared_surface_(other.shared_surface_),
+      x_offset_(x + other.x_offset_),
+      y_offset_(y + other.y_offset_) {}
 
 //------------------------------------------------------------------------------
 
@@ -271,8 +294,10 @@ inline CudaSurface2D<T> CudaSurface2D<T>::EmptyFlippedCopy() const {
 
 template <typename T>
 inline CudaSurface2D<T> &CudaSurface2D<T>::operator=(const T *host_array) {
-  cudaMemcpyToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
-                    sizeof(T) * width_ * height_, cudaMemcpyHostToDevice);
+  const size_t width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2DToArray(shared_surface_.get_dev_array(), x_offset_ * sizeof(T),
+                      y_offset_, host_array, width_in_bytes, width_in_bytes,
+                      height_, cudaMemcpyHostToDevice);
 
   return *this;
 }
@@ -292,21 +317,8 @@ inline CudaSurface2D<T> &CudaSurface2D<T>::operator=(
 
   boundary_mode_ = other.boundary_mode_;
 
-  return *this;
-}
-
-//------------------------------------------------------------------------------
-
-template <typename T>
-inline CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
-                                                  const int host_array_height,
-                                                  const T *host_array,
-                                                  const int host_array_pitch) {
-  const int spitch =
-      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
-  cudaMemcpy2DToArray(shared_surface_.get_dev_array(), 0, 0, host_array,
-                      spitch * sizeof(T), host_array_width * sizeof(T),
-                      host_array_height, cudaMemcpyHostToDevice);
+  x_offset_ = other.x_offset_;
+  y_offset_ = other.y_offset_;
 
   return *this;
 }
@@ -315,23 +327,14 @@ inline CudaSurface2D<T> &CudaSurface2D<T>::Upload(const int host_array_width,
 
 template <typename T>
 inline void CudaSurface2D<T>::CopyTo(T *host_array) const {
-  cudaMemcpyFromArray(host_array, shared_surface_.get_dev_array(), 0, 0,
-                      sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
+  const size_t width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2DFromArray(host_array, width_in_bytes,
+                        shared_surface_.get_dev_array(), x_offset_ * sizeof(T),
+                        y_offset_, width_in_bytes, height_,
+                        cudaMemcpyDeviceToHost);
 }
 
-//------------------------------------------------------------------------------
-
-template <typename T>
-inline void CudaSurface2D<T>::CopyTo(const int host_array_width,
-                                     const int host_array_height, T *host_array,
-                                     const int host_array_pitch) const {
-  const int dpitch =
-      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
-
-  cudaMemcpy2DFromArray(
-      host_array, dpitch * sizeof(T), shared_surface_.get_dev_array(), 0, 0,
-      host_array_width * sizeof(T), host_array_height, cudaMemcpyDeviceToHost);
-}
+//-------------------------------------------------------------------------------
 
 }  // namespace cua
 

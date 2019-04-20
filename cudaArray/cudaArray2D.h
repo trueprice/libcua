@@ -288,7 +288,7 @@ __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
 
 //------------------------------------------------------------------------------
 
-// host- and device-level private constructor for creating views
+// host-level private constructor for creating views
 template <typename T>
 CudaArray2D<T>::CudaArray2D<T>(const size_t x, const size_t y,
                                const size_t width, const size_t height,

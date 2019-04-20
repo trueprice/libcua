@@ -66,8 +66,17 @@ TEST(CudaSurface2DTest, TestViewDownload) {
     cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
     wrapper.CheckViewDownload();                                         \
   }
-  TYPE_TEST(float)
-  //TYPE_TESTS
+  TYPE_TESTS
+#undef TYPE_TEST
+}
+
+TEST(CudaSurface2DTest, TestNestedViews) {
+#define TYPE_TEST(TYPE)                                                  \
+  {                                                                      \
+    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
+    wrapper.CheckNestedViews();                                          \
+  }
+  TYPE_TESTS
 #undef TYPE_TEST
 }
 

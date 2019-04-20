@@ -87,14 +87,17 @@ class CudaArray2DTestWrapper
   //----------------------------------------------------------------------------
 
   void CheckView() {
+    ASSERT_GT(array_.Height(), 1);
+
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
-    ASSERT_GT(array_.Height(), 1);
+
     for (size_t col = 0; col < array_.Width(); ++col) {
       auto view = array_.View(col, 1, 1, array_.Height());
       view.Fill(AsScalar(col));
       CUDA_CHECK_ERROR
     }
+
     DownloadAndCheck(
         [](size_t x, size_t y) { return AsScalar((y > 0) ? x : 0); });
   }
@@ -102,13 +105,53 @@ class CudaArray2DTestWrapper
   //----------------------------------------------------------------------------
 
   void CheckViewDownload() {
-    array_.Fill(AsScalar(0));
-    CUDA_CHECK_ERROR
     ASSERT_GT(array_.Width(), 2);
     ASSERT_GT(array_.Height(), 2);
+
+    const Scalar kFillValue = AsScalar(14);
+    array_.Fill(kFillValue);
+    CUDA_CHECK_ERROR
+
     auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
     view.ApplyOp([] __device__(size_t x, size_t y) { return AsScalar(x + y); });
+
     DownloadAndCheck(view, [](size_t x, size_t y) { return AsScalar(x + y); });
+    DownloadAndCheck([=](size_t x, size_t y) {
+      return (x > 0 && x < array_.Width() - 1 && y > 0 &&
+              y < array_.Height() - 1)
+                 ? AsScalar(x - 1 + y - 1)
+                 : kFillValue;
+    });
+  }
+
+  //----------------------------------------------------------------------------
+
+  void CheckNestedViews() {
+    ASSERT_GT(array_.Width(), 4);
+    ASSERT_GT(array_.Height(), 4);
+
+    const Scalar kFillValue0 = AsScalar(1);
+    const Scalar kFillValue1 = AsScalar(2);
+    const Scalar kFillValue2 = AsScalar(3);
+
+    array_.Fill(kFillValue0);
+    CUDA_CHECK_ERROR
+
+    auto view1 = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
+    view1.Fill(kFillValue1);
+    auto view2 = view1.View(1, 1, view1.Width() - 2, view1.Height() - 2);
+    view2.Fill(kFillValue2);
+
+    DownloadAndCheck([=](size_t x, size_t y) {
+      if (x > 1 && x < array_.Width() - 2 && y > 1 && y < array_.Height() - 2) {
+        return kFillValue2;
+      } else if (x > 0 && x < array_.Width() - 1 && y > 0 &&
+                 y < array_.Height() - 1) {
+        return kFillValue1;
+      } else {
+        return kFillValue0;
+      }
+    });
   }
 
   //----------------------------------------------------------------------------

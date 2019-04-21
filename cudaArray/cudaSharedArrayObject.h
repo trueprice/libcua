@@ -36,6 +36,8 @@
 #ifndef CUDA_SHARED_ARRAY_OBJECT_H_
 #define CUDA_SHARED_ARRAY_OBJECT_H_
 
+#include <memory>
+
 namespace cua {
 
 /**
@@ -154,6 +156,8 @@ class CudaSharedSurfaceObject
 
     cudaCreateSurfaceObject(&this->cuda_api_obj, &res_desc);
   }
+
+  ~CudaSharedSurfaceObject() {}
 };
 
 //------------------------------------------------------------------------------

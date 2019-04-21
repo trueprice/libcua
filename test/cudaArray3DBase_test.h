@@ -33,33 +33,29 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_ARRAY2D_BASE_TEST_H_
-#define CUDA_ARRAY2D_BASE_TEST_H_
+#ifndef CUDA_ARRAY3D_BASE_TEST_H_
+#define CUDA_ARRAY3D_BASE_TEST_H_
 
 #include <vector>
 
+#include "gtest/gtest.h"
+
 #include "util.h"
-
-namespace cua {
-
-namespace test {
 
 //------------------------------------------------------------------------------
 
-// Ops for testing ApplyOp need to be defined outside of the test function
-// (this was unfortunately the only way I could get it to compile), so I went
-// ahead and moved all the test functionality to this class.
 template <typename CudaArrayType>
-class CudaArray2DTestWrapper
-    : public PrimitiveConverter<typename CudaArrayType::Scalar> {
+class CudaArray3DBaseTest
+    : public ::testing::Test,
+      public PrimitiveConverter<typename CudaArrayType::Scalar> {
  public:
   typedef typename CudaArrayType::Scalar Scalar;
   using PrimitiveConverter<Scalar>::AsScalar;
 
   //----------------------------------------------------------------------------
 
-  CudaArray2DTestWrapper(size_t width = 10, size_t height = 10)
-      : array_(width, height) {}
+  CudaArray3DBaseTest(size_t width = 10, size_t height = 10, size_t depth = 10)
+      : array_(width, height, depth) {}
 
   //----------------------------------------------------------------------------
 
@@ -71,11 +67,14 @@ class CudaArray2DTestWrapper
     array.CopyTo(result.data());
     CUDA_CHECK_ERROR
 
-    for (size_t y = 0; y < array.Height(); ++y) {
-      for (size_t x = 0; x < array.Width(); ++x) {
-        const size_t i = y * array.Width() + x;
-        EXPECT_EQ(result[i], host_function(x, y)) << "Coordinate: " << x << " "
-                                                  << y;
+    for (size_t z = 0; z < array.Depth(); ++z) {
+      for (size_t y = 0; y < array.Height(); ++y) {
+        for (size_t x = 0; x < array.Width(); ++x) {
+          const size_t i = (z * array.Height() + y) * array.Width() + x;
+          EXPECT_EQ(result[i], host_function(x, y, z)) << "Coordinate: " << x
+                                                       << " " << y << " " << z;
+          ;
+        }
       }
     }
   }
@@ -93,8 +92,8 @@ class CudaArray2DTestWrapper
       data[i] = AsScalar(i);
     }
     array_ = data.data();
-    DownloadAndCheck([=](size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+      return AsScalar((z * array_.Height() + y) * array_.Width() + x);
     });
   }
 
@@ -102,18 +101,21 @@ class CudaArray2DTestWrapper
 
   void CheckView() {
     ASSERT_GT(array_.Height(), 1);
+    ASSERT_GT(array_.Depth(), 1);
 
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
 
     for (size_t col = 0; col < array_.Width(); ++col) {
-      auto view = array_.View(col, 1, 1, array_.Height() - 1);
+      auto view =
+          array_.View(col, 1, 1, 1, array_.Height() - 1, array_.Depth() - 1);
       view.Fill(AsScalar(col));
       CUDA_CHECK_ERROR
     }
 
-    DownloadAndCheck(
-        [](size_t x, size_t y) { return AsScalar((y > 0) ? x : 0); });
+    DownloadAndCheck([](size_t x, size_t y, size_t z) {
+      return AsScalar((z > 0 && y > 0) ? x : 0);
+    });
   }
 
   //----------------------------------------------------------------------------
@@ -121,19 +123,24 @@ class CudaArray2DTestWrapper
   void CheckViewDownload() {
     ASSERT_GT(array_.Width(), 2);
     ASSERT_GT(array_.Height(), 2);
+    ASSERT_GT(array_.Depth(), 2);
 
     const Scalar kFillValue = AsScalar(14);
     array_.Fill(kFillValue);
     CUDA_CHECK_ERROR
 
-    auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
-    view.ApplyOp([] __device__(size_t x, size_t y) { return AsScalar(x + y); });
+    auto view = array_.View(1, 1, 1, array_.Width() - 2, array_.Height() - 2,
+                            array_.Depth() - 2);
+    view.ApplyOp([] __device__(size_t x, size_t y, size_t z) {
+      return AsScalar(x + y + z);
+    });
 
-    DownloadAndCheck(view, [](size_t x, size_t y) { return AsScalar(x + y); });
-    DownloadAndCheck([=](size_t x, size_t y) {
+    DownloadAndCheck(
+        view, [](size_t x, size_t y, size_t z) { return AsScalar(x + y + z); });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
       return (x > 0 && x < array_.Width() - 1 && y > 0 &&
-              y < array_.Height() - 1)
-                 ? AsScalar(x - 1 + y - 1)
+              y < array_.Height() - 1 && z > 0 && z < array_.Depth() - 1)
+                 ? AsScalar(x - 1 + y - 1 + z - 1)
                  : kFillValue;
     });
   }
@@ -143,20 +150,22 @@ class CudaArray2DTestWrapper
   void CheckViewUpload() {
     ASSERT_GT(array_.Width(), 2);
     ASSERT_GT(array_.Height(), 2);
+    ASSERT_GT(array_.Depth(), 2);
 
     const Scalar kFillValue = AsScalar(14);
     array_.Fill(kFillValue);
     CUDA_CHECK_ERROR
 
-    auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
+    auto view = array_.View(1, 1, 1, array_.Width() - 2, array_.Height() - 2,
+                            array_.Depth() - 2);
 
     std::vector<Scalar> data(view.Size());
     for (size_t i = 0; i < view.Size(); ++i) {
       data[i] = AsScalar(i);
     }
     view = data.data();
-    DownloadAndCheck(view, [=](size_t x, size_t y) {
-      return AsScalar(y * view.Width() + x);
+    DownloadAndCheck(view, [=](size_t x, size_t y, size_t z) {
+      return AsScalar((z * view.Height() + y) * view.Width() + x);
     });
   }
 
@@ -165,6 +174,7 @@ class CudaArray2DTestWrapper
   void CheckNestedViews() {
     ASSERT_GT(array_.Width(), 4);
     ASSERT_GT(array_.Height(), 4);
+    ASSERT_GT(array_.Depth(), 4);
 
     const Scalar kFillValue0 = AsScalar(1);
     const Scalar kFillValue1 = AsScalar(2);
@@ -173,16 +183,19 @@ class CudaArray2DTestWrapper
     array_.Fill(kFillValue0);
     CUDA_CHECK_ERROR
 
-    auto view1 = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
+    auto view1 = array_.View(1, 1, 1, array_.Width() - 2, array_.Height() - 2,
+                             array_.Depth() - 2);
     view1.Fill(kFillValue1);
-    auto view2 = view1.View(1, 1, view1.Width() - 2, view1.Height() - 2);
+    auto view2 = view1.View(1, 1, 1, view1.Width() - 2, view1.Height() - 2,
+                            view1.Depth() - 2);
     view2.Fill(kFillValue2);
 
-    DownloadAndCheck([=](size_t x, size_t y) {
-      if (x > 1 && x < array_.Width() - 2 && y > 1 && y < array_.Height() - 2) {
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+      if (x > 1 && x < array_.Width() - 2 && y > 1 && y < array_.Height() - 2 &&
+          z > 1 && z < array_.Depth() - 2) {
         return kFillValue2;
       } else if (x > 0 && x < array_.Width() - 1 && y > 0 &&
-                 y < array_.Height() - 1) {
+                 y < array_.Height() - 1 && z > 0 && z < array_.Depth() - 1) {
         return kFillValue1;
       } else {
         return kFillValue0;
@@ -194,7 +207,7 @@ class CudaArray2DTestWrapper
 
   void CheckFill(Scalar value) {
     array_.Fill(value);
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -203,9 +216,10 @@ class CudaArray2DTestWrapper
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
     array_ += value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
     array_ += value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
+    DownloadAndCheck(
+        [=](size_t x, size_t y, size_t z) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
@@ -214,9 +228,9 @@ class CudaArray2DTestWrapper
     array_.Fill(value + value);
     CUDA_CHECK_ERROR
     array_ -= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
     array_ -= value;
-    DownloadAndCheck([](size_t x, size_t y) { return 0; });
+    DownloadAndCheck([](size_t x, size_t y, size_t z) { return 0; });
   }
 
   //----------------------------------------------------------------------------
@@ -225,9 +239,10 @@ class CudaArray2DTestWrapper
     array_.Fill(AsScalar(1));
     CUDA_CHECK_ERROR
     array_ *= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
     array_ *= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value * value; });
+    DownloadAndCheck(
+        [=](size_t x, size_t y, size_t z) { return value * value; });
   }
 
   //----------------------------------------------------------------------------
@@ -236,16 +251,17 @@ class CudaArray2DTestWrapper
     array_.Fill(value * value);
     CUDA_CHECK_ERROR
     array_ /= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
     array_ /= value;
-    DownloadAndCheck([](size_t x, size_t y) { return AsScalar(1); });
+    DownloadAndCheck([](size_t x, size_t y, size_t z) { return AsScalar(1); });
   }
 
   //----------------------------------------------------------------------------
 
   void CheckApplyOpConstant(Scalar value) {
-    array_.ApplyOp([=] __device__(size_t x, size_t y) { return value; });
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    array_.ApplyOp(
+        [=] __device__(size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -253,11 +269,11 @@ class CudaArray2DTestWrapper
   void CheckApplyOpLinear() {
     // Note the *this capture!
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
+    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y, size_t z) {
+      return AsScalar((z * array_.Height() + y) * array_.Width() + x);
     });
-    DownloadAndCheck([=](size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
+    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+      return AsScalar((z * array_.Height() + y) * array_.Width() + x);
     });
   }
 
@@ -268,10 +284,11 @@ class CudaArray2DTestWrapper
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
     array_.Fill(value);
     CUDA_CHECK_ERROR
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
-      return value + array_.get(x, y);
+    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y, size_t z) {
+      return value + array_.get(x, y, z);
     });
-    DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
+    DownloadAndCheck(
+        [=](size_t x, size_t y, size_t z) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
@@ -280,8 +297,68 @@ class CudaArray2DTestWrapper
   CudaArrayType array_;
 };
 
-}  // namespace test
+//------------------------------------------------------------------------------
+//
+// Test suite definition.
+//
+//------------------------------------------------------------------------------
 
-}  // namespace cua
+TYPED_TEST_SUITE_P(CudaArray3DBaseTest);
 
-#endif  // CUDA_ARRAY2D_BASE_TEST_H_
+TYPED_TEST_P(CudaArray3DBaseTest, TestUpload) { this->CheckUpload(); }
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestView) { this->CheckView(); }
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestViewDownload) {
+  this->CheckViewDownload();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestViewUpload) { this->CheckViewUpload(); }
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestNestedViews) { this->CheckNestedViews(); }
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestFill) {
+  this->CheckFill(this->AsScalar(3));
+  this->CheckFill(this->AsScalar(0));
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceAdd) {
+  this->CheckInPlaceAdd(this->AsScalar(3));
+}
+
+/*
+TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceSubtract) {
+  this->CheckInPlaceSubtract(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceMultiply) {
+  this->CheckInPlaceMultiply(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceDivide) {
+  this->CheckInPlaceDivide(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpConstant) {
+  this->CheckApplyOpConstant(this->AsScalar(3));
+  this->CheckApplyOpConstant(this->AsScalar(0));
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpLinear) {
+  this->CheckApplyOpLinear();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpUpdate) {
+  this->CheckApplyOpUpdate(this->AsScalar(3));
+}
+*/
+
+REGISTER_TYPED_TEST_SUITE_P(CudaArray3DBaseTest, TestUpload, TestView,
+                            TestViewDownload, TestViewUpload, TestNestedViews,
+                            TestFill,
+TestInPlaceAdd);/*,  TestInPlaceSubtract,
+                            TestInPlaceMultiply, TestInPlaceDivide,
+                            TestApplyOpConstant, TestApplyOpLinear,
+                            TestApplyOpUpdate);*/
+
+#endif  // CUDA_ARRAY3D_BASE_TEST_H_

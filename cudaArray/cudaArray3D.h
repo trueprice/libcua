@@ -151,7 +151,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * @return new CudaArray2D object whose underlying device pointer and size is
    * aligned with the view
    */
-  CudaArray3D<T> inline View(const size_t x, const size_t y, const size_t z,
+  inline CudaArray3D<T> View(const size_t x, const size_t y, const size_t z,
                              const size_t width, const size_t height,
                              const size_t depth) const {
     return CudaArray3D<T>(x, y, z, width, height, depth, *this);
@@ -170,7 +170,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   __host__ __device__ inline T *ptr(const size_t x = 0, const size_t y = 0,
                                     const size_t z = 0) {
     return reinterpret_cast<T *>(reinterpret_cast<char *>(dev_array_ref_) +
-                                 (z * height_ + y) * pitch_ + x * sizeof(T));
+                                 (z * y_pitch_ + y) * pitch_ + x * sizeof(T));
   }
 
   __host__ __device__ inline const T *ptr(const size_t x = 0,
@@ -178,7 +178,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
                                           const size_t z = 0) const {
     return reinterpret_cast<const T *>(
         reinterpret_cast<const char *>(dev_array_ref_) +
-        (z * height_ + y) * pitch_ + x * sizeof(T));
+        (z * y_pitch_ + y) * pitch_ + x * sizeof(T));
   }
 
   /**
@@ -205,6 +205,12 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
     return *ptr(x, y, z);
   }
 
+  /**
+   * Get the pitch of the array (the number of bytes in a row for a row-major
+   * array).
+   */
+  __host__ __device__ inline size_t Pitch() const { return pitch_; }
+
   //----------------------------------------------------------------------------
   // private class methods and fields
 
@@ -223,6 +229,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
               const CudaArray3D<T> &other);
 
   size_t pitch_;
+  size_t y_pitch_;  // offset when using a view (always equals original height)
   std::shared_ptr<T> dev_array_;
   T *dev_array_ref_;
 };
@@ -237,7 +244,9 @@ template <typename T>
 CudaArray3D<T>::CudaArray3D<T>(const size_t width, const size_t height,
                                const size_t depth, const dim3 block_dim,
                                const cudaStream_t stream)
-    : Base(width, height, depth, block_dim, stream), dev_array_(nullptr) {
+    : Base(width, height, depth, block_dim, stream),
+      dev_array_(nullptr),
+      y_pitch_(height) {
   cudaPitchedPtr dev_pitched_ptr;
   cudaMalloc3D(&dev_pitched_ptr,
                make_cudaExtent(sizeof(T) * width_, height_, depth_));
@@ -257,6 +266,7 @@ template <typename T>
 __host__ __device__ CudaArray3D<T>::CudaArray3D<T>(const CudaArray3D<T> &other)
     : Base(other),
       pitch_(other.pitch_),
+      y_pitch_(other.y_pitch_),
 #ifdef __CUDA_ARCH__
       dev_array_(nullptr),
 #else
@@ -272,8 +282,9 @@ template <typename T>
 CudaArray3D<T>::CudaArray3D<T>(const size_t x, const size_t y, const size_t z,
                                const size_t width, const size_t height,
                                const size_t depth, const CudaArray3D<T> &other)
-    : Base(width, height, other.block_dim_, other.stream_),
+    : Base(width, height, depth, other.block_dim_, other.stream_),
       pitch_(other.pitch_),
+      y_pitch_(other.y_pitch_),
 #ifdef __CUDA_ARCH__
       dev_array_(nullptr),
 #else
@@ -289,6 +300,7 @@ CudaArray3D<T>::~CudaArray3D<T>() {
   dev_array_.reset();
   dev_array_ref_ = nullptr;
   pitch_ = 0;
+  y_pitch_ = 0;
 
   width_ = 0;
   height_ = 0;
@@ -308,14 +320,14 @@ template <typename T>
 inline CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
-  params.srcPtr =
-      make_cudaPitchedPtr(host_array, width_in_bytes, width_in_bytes, height_);
+  params.srcPtr = make_cudaPitchedPtr(const_cast<T *>(host_array),
+                                      width_in_bytes, width_in_bytes, height_);
   params.dstPtr =
-      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, height_);
-  params.kind = cudaMemcpyHostToDevice;
+      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, y_pitch_);
   params.extent = make_cudaExtent(width_in_bytes, height_, depth_);
+  params.kind = cudaMemcpyHostToDevice;
 
-  cudaMemcpy3D(&params);
+  cudaMemcpy3D(&params);  // last copy is synchronous
 
   return *this;
 }
@@ -331,6 +343,7 @@ inline CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
   Base::operator=(other);
 
   pitch_ = other.pitch_;
+  y_pitch_ = other.y_pitch_;
 
   dev_array_ = other.dev_array_;
   dev_array_ref_ = other.dev_array_ref_;
@@ -345,11 +358,11 @@ inline void CudaArray3D<T>::CopyTo(T *host_array) const {
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
   params.srcPtr =
-      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, height_);
+      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, y_pitch_);
   params.dstPtr =
       make_cudaPitchedPtr(host_array, width_in_bytes, width_in_bytes, height_);
-  params.kind = cudaMemcpyDeviceToHost;
   params.extent = make_cudaExtent(width_in_bytes, height_, depth_);
+  params.kind = cudaMemcpyDeviceToHost;
 
   cudaMemcpy3D(&params);
 }
@@ -362,6 +375,7 @@ inline void CudaArray3D<T>::CopyTo(T *host_array) const {
 template <typename T>
 struct CudaArrayTraits<CudaArray3D<T>> {
   typedef T Scalar;
+  typedef bool Mutable;
 };
 
 }  // namespace cua

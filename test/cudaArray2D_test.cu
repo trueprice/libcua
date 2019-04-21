@@ -81,6 +81,16 @@ TEST(CudaArray2DTest, TestViewDownload) {
 #undef TYPE_TEST
 }
 
+TEST(CudaArray2DTest, TestViewUpload) {
+#define TYPE_TEST(TYPE)                                                \
+  {                                                                    \
+    cua::test::CudaArray2DTestWrapper<cua::CudaArray2D<TYPE>> wrapper; \
+    wrapper.CheckViewUpload();                                       \
+  }
+  TYPE_TESTS
+#undef TYPE_TEST
+}
+
 TEST(CudaArray2DTest, TestNestedViews) {
 #define TYPE_TEST(TYPE)                                                \
   {                                                                    \

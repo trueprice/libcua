@@ -48,5 +48,7 @@ macro (LIBCUA_TEST NAME)
 endmacro (LIBCUA_TEST)
 
 libcua_test(cudaArray2D)
+libcua_test(cudaArray3D)
 libcua_test(cudaSurface2D)
+libcua_test(cudaSurface3D)
 libcua_test(cudaTexture2D)

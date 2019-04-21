@@ -64,7 +64,7 @@ __global__ void CudaArray3DBase_copy_kernel(const SrcCls src, DstCls dst) {
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if (x < src.get_width() && y < src.get_height() && z < src.get_depth()) {
+  if (x < src.Width() && y < src.Height() && z < src.Depth()) {
     dst.set(x, y, z, (typename DstCls::Scalar)src.get(x, y, z));
   }
 }
@@ -80,7 +80,7 @@ __global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass mat,
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if (x < mat.get_width() && y < mat.get_height() && z < mat.get_depth()) {
+  if (x < mat.Width() && y < mat.Height() && z < mat.Depth()) {
     mat.set(x, y, z, op(x, y, z));
   }
 }
@@ -96,7 +96,7 @@ __global__ void CudaArray3DBase_fill_kernel(CudaArrayClass mat, const T value) {
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if (x < mat.get_width() && y < mat.get_height() && z < mat.get_depth()) {
+  if (x < mat.Width() && y < mat.Height() && z < mat.Depth()) {
     mat.set(x, y, z, value);
   }
 }
@@ -192,14 +192,14 @@ class CudaArray3DBase {
         stream_(other.stream_) {}
 
   /**
-   * @returns a reference to the object cast to its dervied class type
+   * @returns a reference to the object cast to its derived class type
    */
   __host__ __device__ Derived &derived() {
     return *reinterpret_cast<Derived *>(this);
   }
 
   /**
-   * @returns a reference to the object cast to its dervied class type
+   * @returns a reference to the object cast to its derived class type
    */
   __host__ __device__ const Derived &derived() const {
     return *reinterpret_cast<const Derived *>(this);
@@ -299,6 +299,46 @@ class CudaArray3DBase {
                                       stream_>>>(derived(), op);
   }
 
+  /**
+   * Element-wise addition.
+   * @param value value to add to each array element
+   */
+  ENABLE_IF_MUTABLE
+  inline void operator+=(const Scalar value) {
+    Derived &tmp = derived();
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+          return tmp.get(x, y, z) + value;
+        });
+  }
+
+  /**
+   * Element-wise subtraction.
+   * @param value value to subtract from each array element
+   */
+  ENABLE_IF_MUTABLE
+  inline void operator-=(const Scalar value) { operator+=(-value); }
+
+  /**
+   * Element-wise multiplication.
+   * @param value value by which to multiply each array element
+   */
+  ENABLE_IF_MUTABLE
+  inline void operator*=(const Scalar value) {
+    Derived &tmp = derived();
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+          return tmp.get(x, y, z) * value;
+        });
+  }
+
+  /**
+   * Element-wise division.
+   * @param value value by which to divide each array element.
+   */
+  ENABLE_IF_MUTABLE
+  inline void operator/=(const Scalar value) { operator*=(Scalar(1.) / value); }
+
   //----------------------------------------------------------------------------
   // protected class methods and fields
 
@@ -332,7 +372,7 @@ CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const size_t width,
                                                    const dim3 block_dim,
                                                    const cudaStream_t stream)
     : width_(width), height_(height), depth_(depth), stream_(stream) {
-  set_block_dim(block_dim);
+  SetBlockDim(block_dim);
 }
 
 //------------------------------------------------------------------------------

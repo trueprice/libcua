@@ -36,6 +36,12 @@
 #ifndef TEST_UTIL_H_
 #define TEST_UTIL_H_
 
+namespace {
+
+typedef unsigned char uchar;
+
+}  // namespace
+
 /*
  * CUDA doesn't define standard operators for its vector datatypes.
  */
@@ -78,9 +84,48 @@ inline bool operator==(const uint4 &a, const uint4 &b) {
 
 //------------------------------------------------------------------------------
 
-inline float4 operator+(const float4 &a, const float4 &b) {
-  return {a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
-}
+#define DEFINE_OPERATORS(TYPE, DIM) \
+  OPERATOR(TYPE, DIM, +)            \
+  OPERATOR(TYPE, DIM, -)            \
+  OPERATOR(TYPE, DIM, *)            \
+  OPERATOR(TYPE, DIM, /)
+
+#define OPERATOR(TYPE, DIM, OP)                                            \
+  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {   \
+    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y)}; \
+  }
+DEFINE_OPERATORS(float, 2)
+DEFINE_OPERATORS(char, 2)
+DEFINE_OPERATORS(uchar, 2)
+DEFINE_OPERATORS(int, 2)
+DEFINE_OPERATORS(uint, 2)
+#undef OPERATOR
+
+#define OPERATOR(TYPE, DIM, OP)                                           \
+  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {  \
+    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y), \
+            static_cast<TYPE>(a.z OP b.z)};                               \
+  }
+DEFINE_OPERATORS(float, 3)
+DEFINE_OPERATORS(char, 3)
+DEFINE_OPERATORS(uchar, 3)
+DEFINE_OPERATORS(int, 3)
+DEFINE_OPERATORS(uint, 3)
+#undef OPERATOR
+
+#define OPERATOR(TYPE, DIM, OP)                                            \
+  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {   \
+    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y),  \
+            static_cast<TYPE>(a.z OP b.z), static_cast<TYPE>(a.w OP b.w)}; \
+  }
+DEFINE_OPERATORS(float, 4)
+DEFINE_OPERATORS(char, 4)
+DEFINE_OPERATORS(uchar, 4)
+DEFINE_OPERATORS(int, 4)
+DEFINE_OPERATORS(uint, 4)
+#undef OPERATOR
+
+#undef DEFINE_OPERATORS
 
 //------------------------------------------------------------------------------
 // Allow for safely casting primitives to vector-valued types.

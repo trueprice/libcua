@@ -167,7 +167,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @return new CudaArray2D object whose underlying device pointer and size is
    * aligned with the view
    */
-  CudaArray2D<T> inline View(const size_t x, const size_t y, const size_t width,
+  inline CudaArray2D<T> View(const size_t x, const size_t y, const size_t width,
                              const size_t height) const {
     return CudaArray2D<T>(x, y, width, height, *this);
   }
@@ -218,12 +218,6 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * array).
    */
   __host__ __device__ inline size_t Pitch() const { return pitch_; }
-
-  /**
-   * Get the raw pointer to the underlying memory.
-   */
-  // TODO (True): remove
-  __host__ __device__ inline T *get_raw_ptr() const { return dev_array_ref_; }
 
   //----------------------------------------------------------------------------
   // private class methods and fields
@@ -307,10 +301,7 @@ CudaArray2D<T>::CudaArray2D<T>(const size_t x, const size_t y,
 
 template <typename T>
 CudaArray2D<T>::~CudaArray2D<T>() {
-#ifdef __CUDA_ARCH__
-#else
   dev_array_.reset();
-#endif
   dev_array_ref_ = nullptr;
 
   width_ = 0;

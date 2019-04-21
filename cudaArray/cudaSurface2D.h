@@ -120,7 +120,7 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    * @return new CudaSurface2D view whose underlying device pointer and size is
    * aligned with the view
    */
-  CudaSurface2D<T> inline View(const size_t x, const size_t y,
+  inline CudaSurface2D<T> View(const size_t x, const size_t y,
                                const size_t width, const size_t height) const {
     return CudaSurface2D<T>(x, y, width, height, *this);
   }

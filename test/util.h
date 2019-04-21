@@ -76,6 +76,42 @@ typedef unsigned char uchar;
   DEFINE_FOR_ALL_DIMS(uint)
 
 //------------------------------------------------------------------------------
+// Unary operators (All() and Any()).
+
+template <typename T>
+inline bool All(const T &v) { return v != T{0}; }
+template <typename T>
+inline bool Any(const T &v) { return v != T{0}; }
+
+template <>
+inline bool All(const bool &v) { return v; }
+template <>
+inline bool Any(const bool &v) { return v; }
+
+// Adds the z and w elements, if necessary.
+#define CASE2(TYPE, OP)
+#define CASE3(TYPE, OP) OP(v.z != TYPE{0})
+#define CASE4(TYPE, OP) OP(v.z != TYPE{0}) OP(v.w != TYPE{0})
+
+#define OPERATOR(NAME, OP, TYPE, DIM)                              \
+  template <>                                                      \
+  inline bool NAME(const TYPE##DIM &v) {                           \
+    return (v.x != TYPE{0})OP(v.y != TYPE{0}) CASE##DIM(TYPE, OP); \
+  }
+
+#define DEFINE_FOR_TYPE_AND_DIM(TYPE, DIM) \
+  OPERATOR(All, &&, TYPE, DIM) \
+  OPERATOR(Any, ||, TYPE, DIM) \
+
+DEFINE_FOR_ALL_TYPES
+
+#undef CASE2
+#undef CASE3
+#undef CASE4
+#undef OPERATOR
+#undef DEFINE_FOR_TYPE_AND_DIM
+
+//------------------------------------------------------------------------------
 // bool operator==(a, b)
 
 // Adds the z and w elements, if necessary.
@@ -116,7 +152,9 @@ DEFINE_FOR_ALL_TYPES
   OPERATOR(TYPE, DIM, +)                   \
   OPERATOR(TYPE, DIM, -)                   \
   OPERATOR(TYPE, DIM, *)                   \
-  OPERATOR(TYPE, DIM, /)
+  OPERATOR(TYPE, DIM, /)                   \
+  OPERATOR(TYPE, DIM, >)                   \
+  OPERATOR(TYPE, DIM, <)
 
 DEFINE_FOR_ALL_TYPES
 

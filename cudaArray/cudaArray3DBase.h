@@ -34,7 +34,7 @@
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // TODO: in the future, expand this class to support more CudaArray3D features
-// (fill, fillRandom, etc.; no need for transpose, etc., though)
+// (fillRandom, etc.; no need for transpose, etc., though)
 
 #ifndef CUDA_ARRAY3D_BASE_H_
 #define CUDA_ARRAY3D_BASE_H_
@@ -74,14 +74,14 @@ __global__ void CudaArray3DBase_copy_kernel(const SrcCls src, DstCls dst) {
 // op: __device__ function mapping (x,y) -> CudaArrayClass::Scalar
 //
 template <typename CudaArrayClass, class Function>
-__global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass mat,
+__global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass array,
                                                 Function op) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if (x < mat.Width() && y < mat.Height() && z < mat.Depth()) {
-    mat.set(x, y, z, op(x, y, z));
+  if (x < array.Width() && y < array.Height() && z < array.Depth()) {
+    array.set(x, y, z, op(x, y, z));
   }
 }
 
@@ -91,13 +91,14 @@ __global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass mat,
 // fill an array with a value
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray3DBase_fill_kernel(CudaArrayClass mat, const T value) {
+__global__ void CudaArray3DBase_fill_kernel(CudaArrayClass array,
+                                            const T value) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if (x < mat.Width() && y < mat.Height() && z < mat.Depth()) {
-    mat.set(x, y, z, value);
+  if (x < array.Width() && y < array.Height() && z < array.Depth()) {
+    array.set(x, y, z, value);
   }
 }
 //------------------------------------------------------------------------------

@@ -67,12 +67,13 @@ __global__ void CudaArray2DBase_copy_kernel(const SrcCls src, DstCls dst) {
 // fill an array with a value
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_fill_kernel(CudaArrayClass mat, const T value) {
+__global__ void CudaArray2DBase_fill_kernel(CudaArrayClass array,
+                                            const T value) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (x < mat.Width() && y < mat.Height()) {
-    mat.set(x, y, value);
+  if (x < array.Width() && y < array.Height()) {
+    array.set(x, y, value);
   }
 }
 
@@ -84,11 +85,11 @@ __global__ void CudaArray2DBase_fill_kernel(CudaArrayClass mat, const T value) {
 template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
           typename RandomFunction>
 __global__ void CudaArray2DBase_fillRandom_kernel(
-    CudaRandomStateArrayClass rand_state, CudaArrayClass mat,
+    CudaRandomStateArrayClass rand_state, CudaArrayClass array,
     RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
 
-  if (x < mat.Width()) {
+  if (x < array.Width()) {
     const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
 
     // each thread iterates down columns, so we need to offset the random state
@@ -100,10 +101,10 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
                   CudaArrayClass::BLOCK_ROWS,
               &state);
 
-    const size_t max_y = min(y + CudaArrayClass::TILE_SIZE, mat.Height());
+    const size_t max_y = min(y + CudaArrayClass::TILE_SIZE, array.Height());
 
     for (size_t j = y; j < max_y; j += CudaArrayClass::BLOCK_ROWS) {
-      mat.set(x, j, func(&state));
+      array.set(x, j, func(&state));
     }
 
     // update the global random state
@@ -117,12 +118,11 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
 
 //
 // set a single value in a CudaArray2DBase object
-// NOTE: we assume array bounds have been checked prior to calling this kernel
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_set_kernel(CudaArrayClass mat, const T value,
+__global__ void CudaArray2DBase_set_kernel(CudaArrayClass array, const T value,
                                            const int x, const int y) {
-  mat.set(x, y, value);
+  array.set(x, y, value);
 }
 
 //------------------------------------------------------------------------------
@@ -132,9 +132,9 @@ __global__ void CudaArray2DBase_set_kernel(CudaArrayClass mat, const T value,
 // NOTE: we assume array bounds have been checked prior to calling this kernel
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_get_kernel(CudaArrayClass mat, const T *value,
+__global__ void CudaArray2DBase_get_kernel(CudaArrayClass array, const T *value,
                                            const int x, const int y) {
-  *value = mat.get(x, y);
+  *value = array.get(x, y);
 }
 
 //------------------------------------------------------------------------------
@@ -310,13 +310,13 @@ __global__ void CudaArray2DBase_rot90_CW_kernel(const SrcCls src, DstCls dst) {
 // op: __device__ function mapping (x,y) -> CudaArrayClass::Scalar
 //
 template <typename CudaArrayClass, class Function>
-__global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass mat,
+__global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass array,
                                                 Function op) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  if (x < mat.Width() && y < mat.Height()) {
-    mat.set(x, y, op(x, y));
+  if (x < array.Width() && y < array.Height()) {
+    array.set(x, y, op(x, y));
   }
 }
 

@@ -33,21 +33,10 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// TODO: In the future, have the class be independent of CudaArray2D; instead,
-// a call to this CudaRandomStateArray2D(x, y) would create a new curandState_t
-// instance if one didn't already exist (we could still initialize width x
-// height random states). This would keep us from having to ensure the object
-// had enough entries
-// TODO: another option would be to have this class fill matrices, rather than
-// the other way around. That might work better.
-// TODO: also want to add an Options class that would allow for different random
-// generators, etc.
-
 #ifndef CUDA_RANDOM_STATE_ARRAY2D_H_
 #define CUDA_RANDOM_STATE_ARRAY2D_H_
 
 #include "cudaArray2D.h"
-#include "cudaRandomStateArray2D_kernels.h"
 
 #include <curand.h>
 #include <curand_kernel.h>
@@ -55,27 +44,65 @@
 
 namespace cua {
 
-//
-// CudaRandomStateArray2D
-//
+class CudaRandomStateArray2D;  // forward declaration
+
+__global__ void CudaRandomStateArray2D_init_kernel(CudaRandomStateArray2D array,
+                                                   size_t seed);
+
+//------------------------------------------------------------------------------
+
+/**
+ * @class CudaRandomStateArray2D
+ */
 class CudaRandomStateArray2D : public CudaArray2D<curandState_t> {
  public:
-  CudaRandomStateArray2D(const size_t width, const size_t height);
+  CudaRandomStateArray2D(size_t width, size_t height);
+
+  CudaRandomStateArray2D(size_t width, size_t height, size_t seed);
+
+ private:
+  static inline size_t GetSeed() {
+    auto span = std::chrono::high_resolution_clock::now().time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(span).count();
+  }
 };
 
+//------------------------------------------------------------------------------
 //
 // class method implementations
 //
+//------------------------------------------------------------------------------
 
-CudaRandomStateArray2D::CudaRandomStateArray2D(const size_t width,
-                                               const size_t height)
+CudaRandomStateArray2D::CudaRandomStateArray2D(size_t width, size_t height)
+    : CudaRandomStateArray2D(width, height, GetSeed()) {}
+
+CudaRandomStateArray2D::CudaRandomStateArray2D(size_t width, size_t height,
+                                               size_t seed)
     : CudaArray2D<curandState_t>::CudaArray2D(width, height) {
-  const auto duration =
-      std::chrono::high_resolution_clock::now().time_since_epoch();
-  const size_t seed =
-      std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
   CudaRandomStateArray2D_init_kernel<<<grid_dim_, block_dim_>>>(*this, seed);
+}
+
+//------------------------------------------------------------------------------
+//
+// kernel functions
+//
+//------------------------------------------------------------------------------
+
+//
+// initialize an array of random generators
+//
+__global__ void CudaRandomStateArray2D_init_kernel(CudaRandomStateArray2D array,
+                                                   size_t seed) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  // the curand documentation says it should be faster (and probably ok) to use
+  // different seeds with sequence number 0
+  if (x < array.Width() && y < array.Height()) {
+    curandState_t rand_state;
+    curand_init(seed + y * array.Width() + x, 0, 0, &rand_state);
+    array.set(x, y, rand_state);
+  }
 }
 
 }  // namespace cua

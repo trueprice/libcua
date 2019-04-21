@@ -42,118 +42,14 @@
 
 namespace {
 
-#define TYPE_TESTS                                                \
-  TYPE_TEST(float)                                                \
-  TYPE_TEST(float2) TYPE_TEST(float4) TYPE_TEST(unsigned char)    \
-      TYPE_TEST(uchar2) TYPE_TEST(uchar4) TYPE_TEST(unsigned int) \
-          TYPE_TEST(uint2) TYPE_TEST(uint4)
+typedef ::testing::Types<cua::CudaSurface2D<float>, cua::CudaSurface2D<float2>,
+                         cua::CudaSurface2D<float4>,
+                         cua::CudaSurface2D<unsigned char>,
+                         cua::CudaSurface2D<uchar2>, cua::CudaSurface2D<uchar4>,
+                         cua::CudaSurface2D<unsigned int>,
+                         cua::CudaSurface2D<uint2>, cua::CudaSurface2D<uint4> >
+    Types;
 
-//------------------------------------------------------------------------------
-
-TEST(CudaSurface2DTest, TestUpload) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckUpload();                                               \
-  }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
-
-TEST(CudaSurface2DTest, TestView) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckView();                                                 \
-  }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
-
-TEST(CudaSurface2DTest, TestViewDownload) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckViewDownload();                                         \
-  }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
-
-TEST(CudaSurface2DTest, TestViewUpload) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckViewUpload();                                         \
-  }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
-
-TEST(CudaSurface2DTest, TestNestedViews) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckNestedViews();                                          \
-  }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
-
-//------------------------------------------------------------------------------
-
-TEST(CudaSurface2DTest, TestFill) {
-#define TYPE_TEST(TYPE, ...)                                             \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<TYPE>> wrapper; \
-    wrapper.CheckFill(TYPE{__VA_ARGS__});                                \
-    wrapper.CheckFill(TYPE{0});                                          \
-  }
-  TYPE_TEST(float, 2.f)
-  TYPE_TEST(float4, 2.f, 3.f, 4.f, 5.f)
-  TYPE_TEST(char, 2);
-  TYPE_TEST(uchar4, 2, 3, 4, 5);
-#undef TYPE_TEST
-}
-
-//------------------------------------------------------------------------------
-
-TEST(CudaSurface2DTest, TestInPlaceOps) {
-  cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<float>> wrapper;
-  wrapper.CheckInPlaceAdd(3.f);
-  wrapper.CheckInPlaceSubtract(3.f);
-  wrapper.CheckInPlaceMultiply(3.f);
-  wrapper.CheckInPlaceDivide(3.f);
-}
-
-//------------------------------------------------------------------------------
-
-TEST(CudaSurface2DTest, TestApplyOp) {
-  {
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<float>> wrapper;
-    wrapper.CheckApplyOpConstant(0.f);
-    wrapper.CheckApplyOpConstant(1.f);
-    wrapper.CheckApplyOpLinear();
-    wrapper.CheckApplyOpUpdate(3.f);
-  }
-  {
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<float4>> wrapper;
-    wrapper.CheckApplyOpConstant(float4{0.f});
-    wrapper.CheckApplyOpConstant(float4{1.f, 2.f, 3.f, 4.f});
-    wrapper.CheckApplyOpLinear();
-    wrapper.CheckApplyOpUpdate(float4{1.f, 2.f, 3.f, 4.f});
-  }
-  {
-    cua::test::CudaArray2DTestWrapper<cua::CudaSurface2D<unsigned int>> wrapper;
-    wrapper.CheckApplyOpConstant(0);
-    wrapper.CheckApplyOpConstant(1);
-    wrapper.CheckApplyOpLinear();
-    wrapper.CheckApplyOpUpdate(3);
-  }
-}
-
-//------------------------------------------------------------------------------
-
-#undef TYPE_TESTS
+INSTANTIATE_TYPED_TEST_SUITE_P(CudaSurface2DTest, CudaArray2DBaseTest, Types);
 
 }  // namespace

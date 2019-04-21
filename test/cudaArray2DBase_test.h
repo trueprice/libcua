@@ -40,25 +40,22 @@
 
 #include "util.h"
 
-namespace cua {
-
-namespace test {
-
 //------------------------------------------------------------------------------
 
 // Ops for testing ApplyOp need to be defined outside of the test function
 // (this was unfortunately the only way I could get it to compile), so I went
 // ahead and moved all the test functionality to this class.
 template <typename CudaArrayType>
-class CudaArray2DTestWrapper
-    : public PrimitiveConverter<typename CudaArrayType::Scalar> {
+class CudaArray2DBaseTest
+    : public ::testing::Test,
+      public PrimitiveConverter<typename CudaArrayType::Scalar> {
  public:
   typedef typename CudaArrayType::Scalar Scalar;
   using PrimitiveConverter<Scalar>::AsScalar;
 
   //----------------------------------------------------------------------------
 
-  CudaArray2DTestWrapper(size_t width = 10, size_t height = 10)
+  CudaArray2DBaseTest(size_t width = 10, size_t height = 10)
       : array_(width, height) {}
 
   //----------------------------------------------------------------------------
@@ -93,9 +90,8 @@ class CudaArray2DTestWrapper
       data[i] = AsScalar(i);
     }
     array_ = data.data();
-    DownloadAndCheck([=](size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
-    });
+    DownloadAndCheck(
+        [=](size_t x, size_t y) { return AsScalar(y * array_.Width() + x); });
   }
 
   //----------------------------------------------------------------------------
@@ -251,25 +247,26 @@ class CudaArray2DTestWrapper
   //----------------------------------------------------------------------------
 
   void CheckApplyOpLinear() {
-    // Note the *this capture!
-    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
-    });
-    DownloadAndCheck([=](size_t x, size_t y) {
-      return AsScalar(y * array_.Width() + x);
-    });
+    // Unfortunately, we can't use *this capture within the testing framework,
+    // so we'll avoid accessing array_ in the lambda.
+    const size_t width = array_.Width();
+    array_.ApplyOp(
+        [=] __device__(size_t x, size_t y) { return AsScalar(y * width + x); });
+    DownloadAndCheck(
+        [=](size_t x, size_t y) { return AsScalar(y * array_.Width() + x); });
   }
 
   //----------------------------------------------------------------------------
 
   void CheckApplyOpUpdate(Scalar value) {
-    // Note the *this capture!
-    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
     array_.Fill(value);
     CUDA_CHECK_ERROR
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y) {
-      return value + array_.get(x, y);
+
+    // Unfortunately, we can't use *this capture within the testing framework,
+    // so we'll avoid accessing array_ in the lambda.
+    CudaArrayType local_array(array_);  // shallow copy for lambda capture
+    array_.ApplyOp([=] __device__(size_t x, size_t y) {
+      return value + local_array.get(x, y);
     });
     DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
   }
@@ -280,8 +277,65 @@ class CudaArray2DTestWrapper
   CudaArrayType array_;
 };
 
-}  // namespace test
+//------------------------------------------------------------------------------
+//
+// Test suite definition.
+//
+//------------------------------------------------------------------------------
 
-}  // namespace cua
+TYPED_TEST_SUITE_P(CudaArray2DBaseTest);
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestUpload) { this->CheckUpload(); }
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestView) { this->CheckView(); }
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestViewDownload) {
+  this->CheckViewDownload();
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestViewUpload) { this->CheckViewUpload(); }
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestNestedViews) { this->CheckNestedViews(); }
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestFill) {
+  this->CheckFill(this->AsScalar(3));
+  this->CheckFill(this->AsScalar(0));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestInPlaceAdd) {
+  this->CheckInPlaceAdd(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestInPlaceSubtract) {
+  this->CheckInPlaceSubtract(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestInPlaceMultiply) {
+  this->CheckInPlaceMultiply(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestInPlaceDivide) {
+  this->CheckInPlaceDivide(this->AsScalar(3));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestApplyOpConstant) {
+  this->CheckApplyOpConstant(this->AsScalar(3));
+  this->CheckApplyOpConstant(this->AsScalar(0));
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestApplyOpLinear) {
+  this->CheckApplyOpLinear();
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestApplyOpUpdate) {
+  this->CheckApplyOpUpdate(this->AsScalar(3));
+}
+
+REGISTER_TYPED_TEST_SUITE_P(CudaArray2DBaseTest, TestUpload, TestView,
+                            TestViewDownload, TestViewUpload, TestNestedViews,
+                            TestFill, TestInPlaceAdd, TestInPlaceSubtract,
+                            TestInPlaceMultiply, TestInPlaceDivide,
+                            TestApplyOpConstant, TestApplyOpLinear,
+                            TestApplyOpUpdate);
 
 #endif  // CUDA_ARRAY2D_BASE_TEST_H_

@@ -42,9 +42,6 @@
 
 //------------------------------------------------------------------------------
 
-// Ops for testing ApplyOp need to be defined outside of the test function
-// (this was unfortunately the only way I could get it to compile), so I went
-// ahead and moved all the test functionality to this class.
 template <typename CudaArrayType>
 class CudaArray2DBaseTest
     : public ::testing::Test,

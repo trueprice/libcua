@@ -33,40 +33,117 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "cudaArray2D.h"
 #include "cudaTexture2D.h"
 
 #include "gtest/gtest.h"
 
-#include "cudaArray2DBase_test.h"
 #include "util.h"
 
 namespace {
 
-TEST(CudaTexture2DTest, TestUpload) {
-}
+template <typename CudaTextureType>
+class CudaTexture2DTest
+    : public ::testing::Test,
+      public PrimitiveConverter<typename CudaTextureType::Scalar> {
+ public:
+  typedef typename CudaTextureType::Scalar Scalar;
+  using PrimitiveConverter<Scalar>::AsScalar;
 
-/*
-#define TYPE_TESTS                                                \
-  TYPE_TEST(float)                                                \
-  TYPE_TEST(float2) TYPE_TEST(float4) TYPE_TEST(unsigned char)    \
-      TYPE_TEST(uchar2) TYPE_TEST(uchar4) TYPE_TEST(unsigned int) \
-          TYPE_TEST(uint2) TYPE_TEST(uint4)
+  //----------------------------------------------------------------------------
 
-//------------------------------------------------------------------------------
+  CudaTexture2DTest(size_t width = 10, size_t height = 10)
+      : texture_(width, height) {}
 
-TEST(CudaTexture2DTest, TestUpload) {
-#define TYPE_TEST(TYPE)                                                  \
-  {                                                                      \
-    cua::test::CudaArray2DTestWrapper<cua::CudaTexture2D<TYPE>> wrapper; \
-    wrapper.CheckUpload();                                               \
+  //----------------------------------------------------------------------------
+
+  template <typename CudaArrayType, typename HostFunction>
+  static void DownloadAndCheck(const CudaArrayType& array,
+                               const HostFunction& host_function) {
+    CUDA_CHECK_ERROR
+    std::vector<Scalar> result(array.Size());
+    array.CopyTo(result.data());
+    CUDA_CHECK_ERROR
+
+    for (size_t y = 0; y < array.Height(); ++y) {
+      for (size_t x = 0; x < array.Width(); ++x) {
+        const size_t i = y * array.Width() + x;
+        EXPECT_EQ(result[i], host_function(x, y)) << "Coordinate: " << x << " "
+                                                  << y;
+      }
+    }
   }
-  TYPE_TESTS
-#undef TYPE_TEST
-}
+
+  template <typename HostFunction>
+  void DownloadAndCheck(const HostFunction& host_function) {
+    DownloadAndCheck(texture_, host_function);
+  }
+
+  //----------------------------------------------------------------------------
+
+  void Upload() {
+    std::vector<Scalar> data(texture_.Size());
+    for (size_t i = 0; i < texture_.Size(); ++i) {
+      data[i] = AsScalar(i);
+    }
+    texture_ = data.data();
+  }
+
+  //----------------------------------------------------------------------------
+
+  void CheckUpload() {
+    Upload();
+    DownloadAndCheck(
+        [=](size_t x, size_t y) { return AsScalar(y * texture_.Width() + x); });
+  }
+
+  //----------------------------------------------------------------------------
+
+  void CheckGet() {
+    Upload();
+
+    // Unfortunately, we can't use *this capture within the testing framework,
+    // so we'll avoid accessing texture_ in the lambda.
+    cua::CudaArray2D<Scalar> array(texture_.Width(), texture_.Height());
+    CudaTextureType local_texture(texture_);  // shallow copy for lambda capture
+    array.ApplyOp(
+        [=] __device__(size_t x, size_t y) { return local_texture.get(x, y); });
+
+    DownloadAndCheck(array, [=](size_t x, size_t y) {
+      return AsScalar(y * texture_.Width() + x);
+    });
+  }
+
+  //----------------------------------------------------------------------------
+
+ private:
+  CudaTextureType texture_;
+};
 
 //------------------------------------------------------------------------------
+//
+// Test suite definition.
+//
+//------------------------------------------------------------------------------
 
-#undef TYPE_TESTS
-*/
+TYPED_TEST_SUITE_P(CudaTexture2DTest);
+
+TYPED_TEST_P(CudaTexture2DTest, TestUpload) { this->CheckUpload(); }
+
+TYPED_TEST_P(CudaTexture2DTest, TestGet) { this->CheckGet(); }
+
+REGISTER_TYPED_TEST_SUITE_P(CudaTexture2DTest, TestUpload, TestGet);
+
+typedef ::testing::Types<cua::CudaTexture2D<float>, cua::CudaTexture2D<float2>,
+                         cua::CudaTexture2D<float4>,
+                         cua::CudaTexture2D<unsigned char>,
+                         cua::CudaTexture2D<uchar2>, cua::CudaTexture2D<uchar4>,
+                         cua::CudaTexture2D<unsigned int>,
+                         cua::CudaTexture2D<uint2>, cua::CudaTexture2D<uint4> >
+    Types;
+
+INSTANTIATE_TYPED_TEST_SUITE_P(CudaTexture2DTest, CudaTexture2DTest, Types);
+
+//------------------------------------------------------------------------------
 
 }  // namespace

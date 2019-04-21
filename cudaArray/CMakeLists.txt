@@ -35,4 +35,43 @@
 
 add_library(libcua INTERFACE)
 target_link_libraries(libcua INTERFACE ${CUDA_LIBRARIES})
-target_include_directories(libcua INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(libcua INTERFACE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cudaArray>
+  $<INSTALL_INTERFACE:include>
+)
+
+# Installation code following largely from:
+# https://stackoverflow.com/questions/47718485/
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  "${PROJECT_BINARY_DIR}/libcuaConfigVersion.cmake"
+  VERSION ${LIBCUA_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(TARGETS libcua
+  EXPORT libcuaTargets
+  LIBRARY DESTINATION lib COMPONENT Runtime
+  ARCHIVE DESTINATION lib COMPONENT Development
+  RUNTIME DESTINATION bin COMPONENT Runtime
+  PUBLIC_HEADER DESTINATION include/cudaArray COMPONENT Development
+  BUNDLE DESTINATION bin COMPONENT Runtime
+)
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  "${PROJECT_SOURCE_DIR}/cudaArray/libcuaConfig.cmake.in"
+  "${PROJECT_BINARY_DIR}/libcuaConfig.cmake"
+  INSTALL_DESTINATION lib/cmake/libcua
+)
+
+install(EXPORT libcuaTargets DESTINATION lib/cmake/libcua)
+install(FILES
+  "${PROJECT_BINARY_DIR}/libcuaConfigVersion.cmake"
+  "${PROJECT_BINARY_DIR}/libcuaConfig.cmake"
+  DESTINATION lib/cmake/libcua)
+install(
+  DIRECTORY ${PROJECT_SOURCE_DIR}/cudaArray/
+  DESTINATION include/cudaArray
+  FILES_MATCHING PATTERN "*.h")

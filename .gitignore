@@ -2,3 +2,4 @@ html
 latex
 *.swp
 build/
+install/

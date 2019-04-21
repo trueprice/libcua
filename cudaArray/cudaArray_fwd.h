@@ -54,6 +54,12 @@ template <typename T>
 class CudaSurface2D;
 
 template <typename T>
+class CudaSurface2DArray;
+
+template <typename T>
+class CudaSurface3D;
+
+template <typename T>
 class CudaTexture2D;
 
 }  // namespace cua

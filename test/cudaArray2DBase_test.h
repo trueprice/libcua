@@ -216,7 +216,7 @@ class CudaArray2DTestWrapper
     array_ -= value;
     DownloadAndCheck([=](size_t x, size_t y) { return value; });
     array_ -= value;
-    DownloadAndCheck([](size_t x, size_t y) { return 0; });
+    DownloadAndCheck([](size_t x, size_t y) { return AsScalar(0); });
   }
 
   //----------------------------------------------------------------------------

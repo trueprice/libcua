@@ -36,122 +36,8 @@
 #ifndef TEST_UTIL_H_
 #define TEST_UTIL_H_
 
-namespace {
-
-typedef unsigned char uchar;
-
-}  // namespace
-
-/*
- * CUDA doesn't define standard operators for its vector datatypes.
- */
-
-inline bool operator==(const float2 &a, const float2 &b) {
-  return a.x == b.x && a.y == b.y;
-}
-
-inline bool operator==(const float3 &a, const float3 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-inline bool operator==(const float4 &a, const float4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-inline bool operator==(const uchar2 &a, const uchar2 &b) {
-  return a.x == b.x && a.y == b.y;
-}
-
-inline bool operator==(const uchar3 &a, const uchar3 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-inline bool operator==(const uchar4 &a, const uchar4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-inline bool operator==(const uint2 &a, const uint2 &b) {
-  return a.x == b.x && a.y == b.y;
-}
-
-inline bool operator==(const uint3 &a, const uint3 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-inline bool operator==(const uint4 &a, const uint4 &b) {
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
 //------------------------------------------------------------------------------
-
-// Adds the z and w elements, if necessary.
-#define OP_CASE2(TYPE, OP)
-#define OP_CASE3(TYPE, OP) , static_cast<TYPE>(a.z OP b.z)
-#define OP_CASE4(TYPE, OP) \
-  , static_cast<TYPE>(a.z OP b.z), static_cast<TYPE>(a.w OP b.w)
-
-#define OPERATOR(TYPE, DIM, OP)                                          \
-  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) { \
-    return {static_cast<TYPE>(a.x OP b.x),                               \
-            static_cast<TYPE>(a.y OP b.y) OP_CASE##DIM(TYPE, OP)};       \
-  }
-
-#define DEFINE_OPERATORS_FOR_DIM(TYPE, DIM) \
-  OPERATOR(TYPE, DIM, +)                    \
-  OPERATOR(TYPE, DIM, -)                    \
-  OPERATOR(TYPE, DIM, *)                    \
-  OPERATOR(TYPE, DIM, /)
-
-#define DEFINE_OPERATORS(TYPE) \
-  DEFINE_OPERATORS_FOR_DIM(TYPE, 2) \
-  DEFINE_OPERATORS_FOR_DIM(TYPE, 3) \
-  DEFINE_OPERATORS_FOR_DIM(TYPE, 4)
-
-DEFINE_OPERATORS(float)
-DEFINE_OPERATORS(char)
-DEFINE_OPERATORS(uchar)
-DEFINE_OPERATORS(int)
-DEFINE_OPERATORS(uint)
-
-#undef OPERATOR_CASE2
-#undef OPERATOR_CASE3
-#undef OPERATOR_CASE4
-#undef OPERATOR
-#undef DEFINE_OPERATORS_FOR_DIM
-#undef DEFINE_OPERATORS
-
-//------------------------------------------------------------------------------
-// Allow for safely casting primitives to vector-valued types.
-
-template <typename ScalarType>
-struct PrimitiveConverter {
-  template <typename T>
-  static inline ScalarType AsScalar(T value) {
-    return static_cast<ScalarType>(value);
-  }
-};
-
-#define SPECIALIZE_PRIMITIVE(TYPE, PRIMITIVE_TYPE)     \
-  template <>                                          \
-  struct PrimitiveConverter<TYPE> {                    \
-    template <typename T>                              \
-    static inline TYPE AsScalar(T value) {             \
-      return TYPE{static_cast<PRIMITIVE_TYPE>(value)}; \
-    }                                                  \
-  };
-SPECIALIZE_PRIMITIVE(float2, float)
-SPECIALIZE_PRIMITIVE(float3, float)
-SPECIALIZE_PRIMITIVE(float4, float)
-SPECIALIZE_PRIMITIVE(uchar2, unsigned char)
-SPECIALIZE_PRIMITIVE(uchar3, unsigned char)
-SPECIALIZE_PRIMITIVE(uchar4, unsigned char)
-SPECIALIZE_PRIMITIVE(uint2, unsigned int)
-SPECIALIZE_PRIMITIVE(uint3, unsigned int)
-SPECIALIZE_PRIMITIVE(uint4, unsigned int)
-#undef SPECIALIZE_PRIMITIVE
-
-//------------------------------------------------------------------------------
-// Error checking
+// Error-checking macro.
 
 inline void CudaCheckError(const char *filename, int line) {
   cudaDeviceSynchronize();
@@ -161,5 +47,120 @@ inline void CudaCheckError(const char *filename, int line) {
 }
 
 #define CUDA_CHECK_ERROR CudaCheckError(__FILE__, __LINE__);
+
+//------------------------------------------------------------------------------
+
+/*
+ * CUDA doesn't define standard operators for its vector datatypes, so here we
+ * are.
+ */
+
+namespace {
+
+typedef unsigned char uchar;
+
+}  // namespace
+
+#define DEFINE_FOR_ALL_DIMS(TYPE)   \
+  DEFINE_FOR_TYPE_AND_DIM(TYPE, 2) \
+  DEFINE_FOR_TYPE_AND_DIM(TYPE, 3) \
+  DEFINE_FOR_TYPE_AND_DIM(TYPE, 4)
+
+#define DEFINE_FOR_ALL_TYPES \
+  DEFINE_FOR_ALL_DIMS(float)    \
+  DEFINE_FOR_ALL_DIMS(char)     \
+  DEFINE_FOR_ALL_DIMS(uchar)    \
+  DEFINE_FOR_ALL_DIMS(short)    \
+  DEFINE_FOR_ALL_DIMS(ushort)   \
+  DEFINE_FOR_ALL_DIMS(int)      \
+  DEFINE_FOR_ALL_DIMS(uint)
+
+//------------------------------------------------------------------------------
+// bool operator==(a, b)
+
+// Adds the z and w elements, if necessary.
+#define CASE2
+#define CASE3 &&(a.z == b.z)
+#define CASE4 &&(a.z == b.z) && (a.w == b.w)
+
+#define OPERATOR(TYPE, DIM)                                        \
+  inline bool operator==(const TYPE##DIM &a, const TYPE##DIM &b) { \
+    return a.x == b.x && a.y == b.y CASE##DIM;                     \
+  }
+
+#define DEFINE_FOR_TYPE_AND_DIM(TYPE, DIM) OPERATOR(TYPE, DIM)
+
+DEFINE_FOR_ALL_TYPES
+
+#undef CASE2
+#undef CASE3
+#undef CASE4
+#undef OPERATOR
+#undef DEFINE_FOR_TYPE_AND_DIM
+
+//------------------------------------------------------------------------------
+// Element-wise binary operators for vector-valued numeric types (a + b, etc.).
+
+#define CASE2(TYPE, OP)
+#define CASE3(TYPE, OP) , static_cast<TYPE>(a.z OP b.z)
+#define CASE4(TYPE, OP) \
+  , static_cast<TYPE>(a.z OP b.z), static_cast<TYPE>(a.w OP b.w)
+
+#define OPERATOR(TYPE, DIM, OP)                                          \
+  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) { \
+    return {static_cast<TYPE>(a.x OP b.x),                               \
+            static_cast<TYPE>(a.y OP b.y) CASE##DIM(TYPE, OP)};          \
+  }
+
+#define DEFINE_FOR_TYPE_AND_DIM(TYPE, DIM) \
+  OPERATOR(TYPE, DIM, +)                   \
+  OPERATOR(TYPE, DIM, -)                   \
+  OPERATOR(TYPE, DIM, *)                   \
+  OPERATOR(TYPE, DIM, /)
+
+DEFINE_FOR_ALL_TYPES
+
+#undef CASE2
+#undef CASE3
+#undef CASE4
+#undef OPERATOR
+#undef DEFINE_FOR_TYPE_AND_DIM
+
+//------------------------------------------------------------------------------
+// Allow for safely casting primitives to vector-valued types -- duplicates the
+// given primitive value to each vector element.
+
+template <typename ScalarType>
+struct PrimitiveConverter {
+  template <typename T>
+  static inline ScalarType AsScalar(T value) {
+    return static_cast<ScalarType>(value);
+  }
+};
+
+#define CASE2(TYPE)
+#define CASE3(TYPE) , cast_value
+#define CASE4(TYPE) , cast_value, cast_value
+#define DEFINE_FOR_TYPE_AND_DIM(TYPE, DIM)              \
+  template <>                                           \
+  struct PrimitiveConverter<TYPE##DIM> {                \
+    template <typename T>                               \
+    static inline TYPE##DIM AsScalar(T value) {         \
+      const TYPE cast_value = static_cast<TYPE>(value); \
+      return {cast_value, cast_value CASE##DIM(TYPE)};  \
+    }                                                   \
+  };
+
+DEFINE_FOR_ALL_TYPES
+
+#undef CASE2
+#undef CASE3
+#undef CASE4
+#undef DEFINE_FOR_TYPE_AND_DIM
+
+//------------------------------------------------------------------------------
+
+#undef DEFINE_FOR_ALL_DIMS
+#undef DEFINE_FOR_ALL_TYPES
 
 #endif  // TEST_UTIL_H_

@@ -317,7 +317,13 @@ class CudaArray3DBase {
    * @param value value to subtract from each array element
    */
   ENABLE_IF_MUTABLE
-  inline void operator-=(const Scalar value) { operator+=(-value); }
+  inline void operator-=(const Scalar value) {
+    Derived &tmp = derived();
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+          return tmp.get(x, y, z) - value;
+        });
+  }
 
   /**
    * Element-wise multiplication.
@@ -337,7 +343,13 @@ class CudaArray3DBase {
    * @param value value by which to divide each array element.
    */
   ENABLE_IF_MUTABLE
-  inline void operator/=(const Scalar value) { operator*=(Scalar(1.) / value); }
+  inline void operator/=(const Scalar value) {
+    Derived &tmp = derived();
+    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+          return tmp.get(x, y, z) / value;
+        });
+  }
 
   //----------------------------------------------------------------------------
   // protected class methods and fields

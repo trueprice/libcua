@@ -230,7 +230,7 @@ class CudaArray3DBaseTest
     array_ -= value;
     DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
     array_ -= value;
-    DownloadAndCheck([](size_t x, size_t y, size_t z) { return 0; });
+    DownloadAndCheck([](size_t x, size_t y, size_t z) { return AsScalar(0); });
   }
 
   //----------------------------------------------------------------------------
@@ -267,10 +267,12 @@ class CudaArray3DBaseTest
   //----------------------------------------------------------------------------
 
   void CheckApplyOpLinear() {
-    // Note the *this capture!
-    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y, size_t z) {
-      return AsScalar((z * array_.Height() + y) * array_.Width() + x);
+    // Unfortunately, we can't use *this capture within the testing framework,
+    // so we'll avoid accessing array_ in the lambda.
+    const size_t width = array_.Width();
+    const size_t height = array_.Height();
+    array_.ApplyOp([=] __device__(size_t x, size_t y, size_t z) {
+      return AsScalar((z * height + y) * width + x);
     });
     DownloadAndCheck([=](size_t x, size_t y, size_t z) {
       return AsScalar((z * array_.Height() + y) * array_.Width() + x);
@@ -280,12 +282,12 @@ class CudaArray3DBaseTest
   //----------------------------------------------------------------------------
 
   void CheckApplyOpUpdate(Scalar value) {
-    // Note the *this capture!
-    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#star-this-capture
     array_.Fill(value);
     CUDA_CHECK_ERROR
-    array_.ApplyOp([ =, *this ] __device__(size_t x, size_t y, size_t z) {
-      return value + array_.get(x, y, z);
+
+    CudaArrayType local_array(array_);  // shallow copy for lambda capture
+    array_.ApplyOp([=] __device__(size_t x, size_t y, size_t z) {
+      return value + local_array.get(x, y, z);
     });
     DownloadAndCheck(
         [=](size_t x, size_t y, size_t z) { return value + value; });
@@ -326,7 +328,6 @@ TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceAdd) {
   this->CheckInPlaceAdd(this->AsScalar(3));
 }
 
-/*
 TYPED_TEST_P(CudaArray3DBaseTest, TestInPlaceSubtract) {
   this->CheckInPlaceSubtract(this->AsScalar(3));
 }
@@ -351,14 +352,12 @@ TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpLinear) {
 TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpUpdate) {
   this->CheckApplyOpUpdate(this->AsScalar(3));
 }
-*/
 
 REGISTER_TYPED_TEST_SUITE_P(CudaArray3DBaseTest, TestUpload, TestView,
                             TestViewDownload, TestViewUpload, TestNestedViews,
-                            TestFill,
-TestInPlaceAdd);/*,  TestInPlaceSubtract,
+                            TestFill, TestInPlaceAdd, TestInPlaceSubtract,
                             TestInPlaceMultiply, TestInPlaceDivide,
                             TestApplyOpConstant, TestApplyOpLinear,
-                            TestApplyOpUpdate);*/
+                            TestApplyOpUpdate);
 
 #endif  // CUDA_ARRAY3D_BASE_TEST_H_

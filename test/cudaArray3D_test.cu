@@ -38,7 +38,6 @@
 #include "gtest/gtest.h"
 
 #include "cudaArray3DBase_test.h"
-#include "util.h"
 
 namespace {
 

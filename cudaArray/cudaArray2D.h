@@ -133,27 +133,11 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
   CudaArray2D<T> &operator=(const T *host_array);
 
   /**
-   * Copy the contents of a CPU-bound memory array of input size to the current
-   * array. This function assumes that the input array size is correct and
-   * smaller than size of the 2D array.
-   * @param host_array the CPU-bound array
-   * @return *this
-   */
-  // TODO (True): remove
-  void UploadPitchedArray(const int host_array_width,
-                          const int host_array_height, const T *host_array,
-                          const int host_array_pitch = 0);
-
-  /**
    * Copy the contents of the current array to a CPU-bound memory array. This
    * function assumes that the CPU array has the correct size!
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
-
-  // TODO (True): remove
-  void CopyTo(const int host_array_width, const int host_array_height,
-              T *host_array, const int host_array_pitch = 0) const;
 
   //----------------------------------------------------------------------------
 
@@ -358,39 +342,10 @@ inline CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
 //------------------------------------------------------------------------------
 
 template <typename T>
-inline void CudaArray2D<T>::UploadPitchedArray(const int host_array_width,
-                                               const int host_array_height,
-                                               const T *host_array,
-                                               const int host_array_pitch) {
-  const int spitch =
-      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
-  cudaMemcpy2D(dev_array_ref_, pitch_, host_array, spitch * sizeof(T),
-               host_array_width * sizeof(T), host_array_height,
-               cudaMemcpyHostToDevice);
-
-  return *this;
-}
-
-//------------------------------------------------------------------------------
-
-template <typename T>
 inline void CudaArray2D<T>::CopyTo(T *host_array) const {
   const size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
-}
-
-//------------------------------------------------------------------------------
-
-template <typename T>
-inline void CudaArray2D<T>::CopyTo(const int host_array_width,
-                                   const int host_array_height, T *host_array,
-                                   const int host_array_pitch) const {
-  const int spitch =
-      host_array_pitch <= 0 ? host_array_width : host_array_pitch;
-  cudaMemcpy2D(host_array, spitch * sizeof(T), dev_array_ref_, pitch_,
-               host_array_width * sizeof(T), host_array_height,
-               cudaMemcpyDeviceToHost);
 }
 
 }  // namespace cua

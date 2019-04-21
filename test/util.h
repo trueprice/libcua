@@ -84,47 +84,40 @@ inline bool operator==(const uint4 &a, const uint4 &b) {
 
 //------------------------------------------------------------------------------
 
-#define DEFINE_OPERATORS(TYPE, DIM) \
-  OPERATOR(TYPE, DIM, +)            \
-  OPERATOR(TYPE, DIM, -)            \
-  OPERATOR(TYPE, DIM, *)            \
+// Adds the z and w elements, if necessary.
+#define OP_CASE2(TYPE, OP)
+#define OP_CASE3(TYPE, OP) , static_cast<TYPE>(a.z OP b.z)
+#define OP_CASE4(TYPE, OP) \
+  , static_cast<TYPE>(a.z OP b.z), static_cast<TYPE>(a.w OP b.w)
+
+#define OPERATOR(TYPE, DIM, OP)                                          \
+  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) { \
+    return {static_cast<TYPE>(a.x OP b.x),                               \
+            static_cast<TYPE>(a.y OP b.y) OP_CASE##DIM(TYPE, OP)};       \
+  }
+
+#define DEFINE_OPERATORS_FOR_DIM(TYPE, DIM) \
+  OPERATOR(TYPE, DIM, +)                    \
+  OPERATOR(TYPE, DIM, -)                    \
+  OPERATOR(TYPE, DIM, *)                    \
   OPERATOR(TYPE, DIM, /)
 
-#define OPERATOR(TYPE, DIM, OP)                                            \
-  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {   \
-    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y)}; \
-  }
-DEFINE_OPERATORS(float, 2)
-DEFINE_OPERATORS(char, 2)
-DEFINE_OPERATORS(uchar, 2)
-DEFINE_OPERATORS(int, 2)
-DEFINE_OPERATORS(uint, 2)
-#undef OPERATOR
+#define DEFINE_OPERATORS(TYPE) \
+  DEFINE_OPERATORS_FOR_DIM(TYPE, 2) \
+  DEFINE_OPERATORS_FOR_DIM(TYPE, 3) \
+  DEFINE_OPERATORS_FOR_DIM(TYPE, 4)
 
-#define OPERATOR(TYPE, DIM, OP)                                           \
-  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {  \
-    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y), \
-            static_cast<TYPE>(a.z OP b.z)};                               \
-  }
-DEFINE_OPERATORS(float, 3)
-DEFINE_OPERATORS(char, 3)
-DEFINE_OPERATORS(uchar, 3)
-DEFINE_OPERATORS(int, 3)
-DEFINE_OPERATORS(uint, 3)
-#undef OPERATOR
+DEFINE_OPERATORS(float)
+DEFINE_OPERATORS(char)
+DEFINE_OPERATORS(uchar)
+DEFINE_OPERATORS(int)
+DEFINE_OPERATORS(uint)
 
-#define OPERATOR(TYPE, DIM, OP)                                            \
-  inline TYPE##DIM operator OP(const TYPE##DIM &a, const TYPE##DIM &b) {   \
-    return {static_cast<TYPE>(a.x OP b.x), static_cast<TYPE>(a.y OP b.y),  \
-            static_cast<TYPE>(a.z OP b.z), static_cast<TYPE>(a.w OP b.w)}; \
-  }
-DEFINE_OPERATORS(float, 4)
-DEFINE_OPERATORS(char, 4)
-DEFINE_OPERATORS(uchar, 4)
-DEFINE_OPERATORS(int, 4)
-DEFINE_OPERATORS(uint, 4)
+#undef OPERATOR_CASE2
+#undef OPERATOR_CASE3
+#undef OPERATOR_CASE4
 #undef OPERATOR
-
+#undef DEFINE_OPERATORS_FOR_DIM
 #undef DEFINE_OPERATORS
 
 //------------------------------------------------------------------------------

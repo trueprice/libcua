@@ -46,8 +46,12 @@ namespace cua {
 
 class CudaRandomStateArray3D;  // forward declaration
 
-__global__ void CudaRandomStateArray3D_init_kernel(CudaRandomStateArray3D array,
-                                                   size_t seed);
+namespace kernel {
+
+__global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
+                                           size_t seed);
+
+}  // namespace kernel
 
 //------------------------------------------------------------------------------
 
@@ -81,7 +85,7 @@ CudaRandomStateArray3D::CudaRandomStateArray3D(size_t width, size_t height,
 CudaRandomStateArray3D::CudaRandomStateArray3D(size_t width, size_t height,
                                                size_t depth, size_t seed)
     : CudaArray3D<curandState_t>::CudaArray3D(width, height, depth) {
-  CudaRandomStateArray3D_init_kernel<<<grid_dim_, block_dim_>>>(*this, seed);
+  kernel::CudaRandomStateArray3DInit<<<grid_dim_, block_dim_>>>(*this, seed);
 }
 
 //------------------------------------------------------------------------------
@@ -90,10 +94,12 @@ CudaRandomStateArray3D::CudaRandomStateArray3D(size_t width, size_t height,
 //
 //------------------------------------------------------------------------------
 
+namespace kernel {
+
 //
 // initialize an array of random generators
 //
-__global__ void CudaRandomStateArray3D_init_kernel(CudaRandomStateArray3D array,
+__global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
                                                    size_t seed) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -108,6 +114,8 @@ __global__ void CudaRandomStateArray3D_init_kernel(CudaRandomStateArray3D array,
     array.set(x, y, z, rand_state);
   }
 }
+
+}  // namespace kernel
 
 }  // namespace cua
 

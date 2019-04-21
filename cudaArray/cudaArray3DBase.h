@@ -50,6 +50,8 @@ namespace cua {
 #define ENABLE_IF_MUTABLE_IMPL \
   template <class C, typename C::Mutable is_mutable>
 
+namespace kernel {
+
 //
 // kernel definitions
 // TODO: once we have more kernel functions, move them to a separate file
@@ -59,7 +61,7 @@ namespace cua {
 // copy values of one surface to another, possibly with different datatypes
 //
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray3DBase_copy_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray3DBaseCopy(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
@@ -74,7 +76,7 @@ __global__ void CudaArray3DBase_copy_kernel(const SrcCls src, DstCls dst) {
 // op: __device__ function mapping (x,y) -> CudaArrayClass::Scalar
 //
 template <typename CudaArrayClass, class Function>
-__global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass array,
+__global__ void CudaArray3DBaseApplyOp(CudaArrayClass array,
                                                 Function op) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -91,8 +93,7 @@ __global__ void CudaArray3DBase_apply_op_kernel(CudaArrayClass array,
 // fill an array with a value
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray3DBase_fill_kernel(CudaArrayClass array,
-                                            const T value) {
+__global__ void CudaArray3DBaseFill(CudaArrayClass array, const T value) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
@@ -109,9 +110,9 @@ __global__ void CudaArray3DBase_fill_kernel(CudaArrayClass array,
 //
 template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
           typename RandomFunction>
-__global__ void CudaArray3DBase_fillRandom_kernel(
-    CudaRandomStateArrayClass rand_state, CudaArrayClass array,
-    RandomFunction func) {
+__global__ void CudaArray3DBaseFillRandom(CudaRandomStateArrayClass rand_state,
+                                         CudaArrayClass array,
+                                         RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
   const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
   const size_t z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;
@@ -144,6 +145,8 @@ __global__ void CudaArray3DBase_fillRandom_kernel(
     rand_state.set(blockIdx.x, blockIdx.y, blockIdx.z, state);
   }
 }
+
+}  // namespace kernel
 
 //------------------------------------------------------------------------------
 
@@ -297,7 +300,7 @@ class CudaArray3DBase {
    */
   ENABLE_IF_MUTABLE
   inline void Fill(const Scalar value) {
-    CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+    kernel::CudaArray3DBaseFill<<<grid_dim_, block_dim_, 0, stream_>>>(
         derived(), value);
   }
 
@@ -345,7 +348,7 @@ class CudaArray3DBase {
    *
    *      // Array3DType arr1, arr2
    *      // Array3DType out
-   *      out.apply_op([arr1, arr2] __device__(const size_t x, const size_t y,
+   *      out.applyOp([arr1, arr2] __device__(const size_t x, const size_t y,
    *                                           const size_t z) {
    *        return arr1.get(x, y, z) + arr2.get(x, y, z);  // => out(x, y, z)
    *      });
@@ -357,8 +360,8 @@ class CudaArray3DBase {
   template <class Function, class C = CudaArrayTraits<Derived>,
             typename C::Mutable is_mutable = true>
   void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
-    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, shared_mem_bytes,
-                                      stream_>>>(derived(), op);
+    kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, shared_mem_bytes,
+                                     stream_>>>(derived(), op);
   }
 
   /**
@@ -368,7 +371,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+    kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
           return tmp.get(x, y, z) + value;
         });
@@ -381,7 +384,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator-=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+    kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
           return tmp.get(x, y, z) - value;
         });
@@ -394,7 +397,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+    kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
           return tmp.get(x, y, z) * value;
         });
@@ -407,7 +410,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator/=(const Scalar value) {
     Derived &tmp = derived();
-    CudaArray3DBase_apply_op_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
+    kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
           return tmp.get(x, y, z) / value;
         });
@@ -487,7 +490,7 @@ inline OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
       other = derived().EmptyCopy();
     }
 
-    CudaArray3DBase_copy_kernel<<<grid_dim_, block_dim_>>>(derived(), other);
+    kernel::CudaArray3DBaseCopy<<<grid_dim_, block_dim_>>>(derived(), other);
   }
 
   return other;
@@ -505,7 +508,7 @@ inline void CudaArray3DBase<Derived>::FillRandom(
                       (height_ + TILE_SIZE - 1) / TILE_SIZE,
                       (depth_ + TILE_SIZE - 1) / TILE_SIZE);
 
-  CudaArray3DBase_fillRandom_kernel<<<grid_dim, block_dim, 0, stream_>>>(
+  kernel::CudaArray3DBaseFillRandom<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);
 }
 

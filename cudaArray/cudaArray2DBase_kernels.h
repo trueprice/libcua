@@ -41,6 +41,8 @@
 
 namespace cua {
 
+namespace kernel {
+
 //------------------------------------------------------------------------------
 //
 // class-specific kernel functions for the CudaArray2DBase class
@@ -52,7 +54,7 @@ namespace cua {
 // copy values of one surface to another, possibly with different datatypes
 //
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_copy_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseCopy(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -67,8 +69,7 @@ __global__ void CudaArray2DBase_copy_kernel(const SrcCls src, DstCls dst) {
 // fill an array with a value
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_fill_kernel(CudaArrayClass array,
-                                            const T value) {
+__global__ void CudaArray2DBaseFill(CudaArrayClass array, const T value) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -84,7 +85,7 @@ __global__ void CudaArray2DBase_fill_kernel(CudaArrayClass array,
 //
 template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
           typename RandomFunction>
-__global__ void CudaArray2DBase_fillRandom_kernel(
+__global__ void CudaArray2DBaseFillRandom(
     CudaRandomStateArrayClass rand_state, CudaArrayClass array,
     RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
@@ -116,8 +117,8 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
 // set a single value in a CudaArray2DBase object
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_set_kernel(CudaArrayClass array, const T value,
-                                           const int x, const int y) {
+__global__ void CudaArray2DBaseSet(CudaArrayClass array, const T value,
+                                   const int x, const int y) {
   array.set(x, y, value);
 }
 
@@ -128,8 +129,8 @@ __global__ void CudaArray2DBase_set_kernel(CudaArrayClass array, const T value,
 // NOTE: we assume array bounds have been checked prior to calling this kernel
 //
 template <typename CudaArrayClass, typename T>
-__global__ void CudaArray2DBase_get_kernel(CudaArrayClass array, const T *value,
-                                           const int x, const int y) {
+__global__ void CudaArray2DBaseGet(CudaArrayClass array, const T *value,
+                                   const int x, const int y) {
   *value = array.get(x, y);
 }
 
@@ -139,7 +140,7 @@ __global__ void CudaArray2DBase_get_kernel(CudaArrayClass array, const T *value,
 // copy the array to memory allocated for its transpose
 //
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_transpose_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseTranspose(const SrcCls src, DstCls dst) {
   __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
 
   size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
@@ -179,7 +180,7 @@ __global__ void CudaArray2DBase_transpose_kernel(const SrcCls src, DstCls dst) {
 //
 
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_fliplr_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseFlipLR(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
   const size_t w = src.Width();
@@ -198,7 +199,7 @@ __global__ void CudaArray2DBase_fliplr_kernel(const SrcCls src, DstCls dst) {
 //------------------------------------------------------------------------------
 
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_flipud_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseFlipUD(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
   const size_t w = src.Width();
@@ -217,7 +218,7 @@ __global__ void CudaArray2DBase_flipud_kernel(const SrcCls src, DstCls dst) {
 //------------------------------------------------------------------------------
 
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_rot180_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseRot180(const SrcCls src, DstCls dst) {
   const size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
 
   const size_t w = src.Width();
@@ -236,7 +237,7 @@ __global__ void CudaArray2DBase_rot180_kernel(const SrcCls src, DstCls dst) {
 //------------------------------------------------------------------------------
 
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_rot90_CCW_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseRot90_CCW(const SrcCls src, DstCls dst) {
   __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
 
   size_t x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
@@ -269,7 +270,7 @@ __global__ void CudaArray2DBase_rot90_CCW_kernel(const SrcCls src, DstCls dst) {
 //------------------------------------------------------------------------------
 
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBase_rot90_CW_kernel(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseRot90_CW(const SrcCls src, DstCls dst) {
   __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
 
   int x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
@@ -306,8 +307,7 @@ __global__ void CudaArray2DBase_rot90_CW_kernel(const SrcCls src, DstCls dst) {
 // op: __device__ function mapping (x,y) -> CudaArrayClass::Scalar
 //
 template <typename CudaArrayClass, class Function>
-__global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass array,
-                                                Function op) {
+__global__ void CudaArray2DBaseApplyOp(CudaArrayClass array, Function op) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -315,6 +315,8 @@ __global__ void CudaArray2DBase_apply_op_kernel(CudaArrayClass array,
     array.set(x, y, op(x, y));
   }
 }
+
+}  // namespace kernel
 
 }  // namespace cua
 

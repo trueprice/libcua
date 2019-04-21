@@ -33,11 +33,11 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// TODO: in the future, expand this class to support more CudaArray3D features
-// (fillRandom, etc.; no need for transpose, etc., though)
-
 #ifndef CUDA_ARRAY3D_BASE_H_
 #define CUDA_ARRAY3D_BASE_H_
+
+#include <curand.h>
+#include <curand_kernel.h>
 
 namespace cua {
 
@@ -101,6 +101,50 @@ __global__ void CudaArray3DBase_fill_kernel(CudaArrayClass array,
     array.set(x, y, z, value);
   }
 }
+
+//------------------------------------------------------------------------------
+
+//
+// fillRandom: fill with random values
+//
+template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
+          typename RandomFunction>
+__global__ void CudaArray3DBase_fillRandom_kernel(
+    CudaRandomStateArrayClass rand_state, CudaArrayClass array,
+    RandomFunction func) {
+  const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
+  const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
+  const size_t z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;
+
+  // Each thread processes BLOCK_ROWS contiguous rows in y, and then repeats
+  // this for BLOCK_ROWS contiguous depth rows in z.
+
+  curandState_t state = rand_state.get(blockIdx.x, blockIdx.y, blockIdx.z);
+  skipahead(((threadIdx.z * CudaArrayClass::BLOCK_ROWS + threadIdx.y) *
+                 CudaArrayClass::TILE_SIZE +
+             threadIdx.x) *
+                CudaArrayClass::BLOCK_ROWS * CudaArrayClass::BLOCK_ROWS,
+            &state);
+
+  for (size_t k = 0; k < CudaArrayClass::TILE_SIZE;
+       k += CudaArrayClass::BLOCK_ROWS) {
+    for (size_t j = 0; j < CudaArrayClass::TILE_SIZE;
+         j += CudaArrayClass::BLOCK_ROWS) {
+      const auto value = func(&state);
+      if (x < array.Width() && y + j < array.Height() &&
+          z + k < array.Depth()) {
+        array.set(x, y + j, z + k, value);
+      }
+    }
+  }
+
+  // update the global random state
+  if (threadIdx.x == blockDim.x - 1 && threadIdx.y == blockDim.y - 1 &&
+      threadIdx.z == blockDim.z - 1) {
+    rand_state.set(blockIdx.x, blockIdx.y, blockIdx.z, state);
+  }
+}
+
 //------------------------------------------------------------------------------
 
 // Any derived class will need to declare
@@ -162,6 +206,12 @@ class CudaArray3DBase {
 
   /// default block dimensions for general operations
   static const dim3 BLOCK_DIM;
+
+  /// operate on blocks of this width for, e.g., FillRandom
+  static const size_t TILE_SIZE;
+
+  /// number of rows to iterate over per thread for, e.g., FillRandom
+  static const size_t BLOCK_ROWS;
 
   //----------------------------------------------------------------------------
   // constructors and derived()
@@ -250,6 +300,17 @@ class CudaArray3DBase {
     CudaArray3DBase_fill_kernel<<<grid_dim_, block_dim_, 0, stream_>>>(
         derived(), value);
   }
+
+  /**
+   * Fill the array with random values using the given random function.
+   * @param rand_state should have one element per block of this array
+   * @param func random function such as curand_normal with signature
+   *   `T func(curandState_t *)`
+   */
+  template <typename CurandStateArrayType, typename RandomFunction,
+            class C = CudaArrayTraits<Derived>,
+            typename C::Mutable is_mutable = true>
+  void FillRandom(CurandStateArrayType rand_state, RandomFunction func);
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -372,6 +433,12 @@ class CudaArray3DBase {
 template <typename Derived>
 const dim3 CudaArray3DBase<Derived>::BLOCK_DIM = dim3(32, 8, 4);
 
+template <typename Derived>
+const size_t CudaArray3DBase<Derived>::TILE_SIZE = 32;
+
+template <typename Derived>
+const size_t CudaArray3DBase<Derived>::BLOCK_ROWS = 4;
+
 //------------------------------------------------------------------------------
 //
 // public method implementations
@@ -424,6 +491,22 @@ inline OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
   }
 
   return other;
+}
+
+//------------------------------------------------------------------------------
+
+template <typename Derived>
+template <typename CurandStateArrayType, typename RandomFunction, class C,
+          typename C::Mutable is_mutable>
+inline void CudaArray3DBase<Derived>::FillRandom(
+    CurandStateArrayType rand_state, RandomFunction func) {
+  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS, BLOCK_ROWS);
+  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
+                      (height_ + TILE_SIZE - 1) / TILE_SIZE,
+                      (depth_ + TILE_SIZE - 1) / TILE_SIZE);
+
+  CudaArray3DBase_fillRandom_kernel<<<grid_dim, block_dim, 0, stream_>>>(
+      rand_state, derived(), func);
 }
 
 #undef ENABLE_IF_MUTABLE

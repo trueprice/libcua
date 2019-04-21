@@ -37,6 +37,7 @@
 #define CUDA_RANDOM_TEST_H_
 
 #include "cudaRandomStateArray2D.h"
+#include "cudaRandomStateArray3D.h"
 
 #include <vector>
 
@@ -44,6 +45,8 @@
 
 #include "cudaArray2D.h"
 #include "cudaSurface2D.h"
+#include "cudaArray3D.h"
+#include "cudaSurface3D.h"
 #include "util.h"
 
 //------------------------------------------------------------------------------
@@ -60,9 +63,10 @@ class CudaRandomArray2DTest
   CudaRandomArray2DTest(size_t width = 100, size_t height = 100,
                         size_t seed = 0)
       : array_(width, height),
-        random_state_((width + array_.BlockDim().x - 1) / array_.BlockDim().x,
-                      (height + array_.BlockDim().y - 1) / array_.BlockDim().y,
-                      seed) {}
+        random_state_(
+            (width + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            (height + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            seed) {}
 
   //----------------------------------------------------------------------------
   
@@ -102,38 +106,99 @@ class CudaRandomArray2DTest
   cua::CudaRandomStateArray2D random_state_;
 };
 
+//------------------------------------------------------------------------------
+
+template <typename CudaArrayType>
+class CudaRandomArray3DTest
+    : public PrimitiveConverter<typename CudaArrayType::Scalar> {
+ public:
+  typedef typename CudaArrayType::Scalar Scalar;
+  using PrimitiveConverter<Scalar>::AsScalar;
+
+  //----------------------------------------------------------------------------
+
+  CudaRandomArray3DTest(size_t width = 100, size_t height = 100,
+                        size_t depth = 100, size_t seed = 0)
+      : array_(width, height, depth),
+        random_state_(
+            (width + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            (height + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            (depth + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            seed) {}
+
+  //----------------------------------------------------------------------------
+  
+  template <typename RandomFunction>
+  void CheckFillRandom(RandomFunction func, bool check_result = false) {
+    array_.Fill(AsScalar(1));
+    CUDA_CHECK_ERROR
+    array_.FillRandom(random_state_, func);
+    CUDA_CHECK_ERROR
+
+    // Check that numbers from the uniform distribution are in [0,1) -- assume
+    // that the given random seed never results in exactly 0 being returned,
+    // though.
+    if (check_result) {
+      std::vector<Scalar> result(array_.Size());
+      array_.CopyTo(result.data());
+      CUDA_CHECK_ERROR
+
+      for (size_t z = 0; z < array_.Height(); ++z) {
+        for (size_t y = 0; y < array_.Height(); ++y) {
+          for (size_t x = 0; x < array_.Width(); ++x) {
+            const size_t i = (z * array_.Height() + y) * array_.Width() + x;
+            EXPECT_TRUE(All(result[i] > AsScalar(0)))
+                << "Coordinate: " << x << " " << y << " " << z << std::endl
+                << "Value: " << result[i];
+            EXPECT_TRUE(All(result[i] < AsScalar(1)))
+                << "Coordinate: " << x << " " << y << " " << z << std::endl
+                << "Value: " << result[i];
+          }
+        }
+      }
+    }
+  }
+
+  //----------------------------------------------------------------------------
+
+ private:
+  CudaArrayType array_;
+  cua::CudaRandomStateArray3D random_state_;
+};
+
 //
 // Due to the test implementation, our lambda functions need to be defined
 // outside of the TEST().
 //
 
-template <typename CudaArrayType>
+template <typename TestType>
 void TestUniform() {
   auto func = [] __device__(curandState_t * state) {
     return curand_uniform(state);
   };
-  CudaRandomArray2DTest<CudaArrayType>().CheckFillRandom(func, true);
+  TestType().CheckFillRandom(func, true);
 }
 
+template <typename TestType>
 void TestUniformDouble() {
   auto func = [] __device__(curandState_t * state) {
     return curand_uniform_double(state);
   };
-  CudaRandomArray2DTest<cua::CudaArray2D<double>>().CheckFillRandom(func, true);
+  TestType().CheckFillRandom(func, true);
 }
 
-template <typename CudaArrayType>
+template <typename TestType>
 void TestLogNormal(float mean, float stddev) {
   auto func = [=] __device__(curandState_t * state) {
     return curand_log_normal(state, mean, stddev);
   };
-  CudaRandomArray2DTest<CudaArrayType>().CheckFillRandom(func);
+  TestType().CheckFillRandom(func);
 }
 
-template <typename CudaArrayType>
+template <typename TestType>
 void TestUnsignedInt() {
   auto func = [] __device__(curandState_t * state) { return curand(state); };
-  CudaRandomArray2DTest<CudaArrayType>().CheckFillRandom(func);
+  TestType().CheckFillRandom(func);
 }
 
 //------------------------------------------------------------------------------
@@ -142,25 +207,46 @@ void TestUnsignedInt() {
 //
 //------------------------------------------------------------------------------
 
-TEST(RandomTest, UnsignedInt) {
-  TestUnsignedInt<cua::CudaArray2D<unsigned int>>();
-  TestUnsignedInt<cua::CudaSurface2D<unsigned int>>();
+TEST(RandomTest, UnsignedInt2D) {
+  TestUnsignedInt<CudaRandomArray2DTest<cua::CudaArray2D<unsigned int>>>();
+  TestUnsignedInt<CudaRandomArray2DTest<cua::CudaSurface2D<unsigned int>>>();
 }
 
-TEST(RandomTest, UniformFloat) {
-  TestUniform<cua::CudaArray2D<float>>();
-  TestUniform<cua::CudaSurface2D<float>>();
+TEST(RandomTest, UniformFloat2D) {
+  TestUniform<CudaRandomArray2DTest<cua::CudaArray2D<float>>>();
+  TestUniform<CudaRandomArray2DTest<cua::CudaSurface2D<float>>>();
 }
 
-TEST(RandomTest, UniformDouble) {
-  TestUniformDouble();
+TEST(RandomTest, UniformDouble2D) {
+  TestUniformDouble<CudaRandomArray2DTest<cua::CudaArray2D<double>>>();
 }
 
-TEST(RandomTest, LogNormal) {
-  TestLogNormal<cua::CudaArray2D<float>>(0.f, 1.f);
-  TestLogNormal<cua::CudaSurface2D<float>>(0.f, 1.f);
-  TestLogNormal<cua::CudaArray2D<float>>(2.f, 4.f);
-  TestLogNormal<cua::CudaSurface2D<float>>(2.f, 4.f);
+TEST(RandomTest, LogNormal2D) {
+  TestLogNormal<CudaRandomArray2DTest<cua::CudaArray2D<float>>>(0.f, 1.f);
+  TestLogNormal<CudaRandomArray2DTest<cua::CudaSurface2D<float>>>(0.f, 1.f);
+  TestLogNormal<CudaRandomArray2DTest<cua::CudaArray2D<float>>>(2.f, 4.f);
+  TestLogNormal<CudaRandomArray2DTest<cua::CudaSurface2D<float>>>(2.f, 4.f);
+}
+
+TEST(RandomTest, UnsignedInt3D) {
+  TestUnsignedInt<CudaRandomArray3DTest<cua::CudaArray3D<unsigned int>>>();
+  TestUnsignedInt<CudaRandomArray3DTest<cua::CudaSurface3D<unsigned int>>>();
+}
+
+TEST(RandomTest, UniformFloat3D) {
+  TestUniform<CudaRandomArray3DTest<cua::CudaArray3D<float>>>();
+  TestUniform<CudaRandomArray3DTest<cua::CudaSurface3D<float>>>();
+}
+
+TEST(RandomTest, UniformDouble3D) {
+  TestUniformDouble<CudaRandomArray3DTest<cua::CudaArray3D<double>>>();
+}
+
+TEST(RandomTest, LogNormal3D) {
+  TestLogNormal<CudaRandomArray3DTest<cua::CudaArray3D<float>>>(0.f, 1.f);
+  TestLogNormal<CudaRandomArray3DTest<cua::CudaSurface3D<float>>>(0.f, 1.f);
+  TestLogNormal<CudaRandomArray3DTest<cua::CudaArray3D<float>>>(2.f, 4.f);
+  TestLogNormal<CudaRandomArray3DTest<cua::CudaSurface3D<float>>>(2.f, 4.f);
 }
 
 #endif  // CUDA_RANDOM_TEST_H_

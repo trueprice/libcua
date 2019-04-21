@@ -50,6 +50,8 @@ class CudaArray3D;
 
 class CudaRandomStateArray2D;
 
+class CudaRandomStateArray3D;
+
 template <typename T>
 class CudaSurface2D;
 

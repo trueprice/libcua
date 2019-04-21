@@ -88,29 +88,25 @@ __global__ void CudaArray2DBase_fillRandom_kernel(
     CudaRandomStateArrayClass rand_state, CudaArrayClass array,
     RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
+  const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
 
-  if (x < array.Width()) {
-    const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
+  // Each thread processes BLOCK_ROWS contiguous rows in y.
+  curandState_t state = rand_state.get(blockIdx.x, blockIdx.y);
+  skipahead((threadIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.x) *
+                CudaArrayClass::BLOCK_ROWS,
+            &state);
 
-    // each thread iterates down columns, so we need to offset the random state
-    // for this thread by CudaArray2DBase::BLOCK_ROWS, in addition to any
-    // within-block offset in y
-
-    curandState_t state = rand_state.get(blockIdx.x, blockIdx.y);
-    skipahead((threadIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.x) *
-                  CudaArrayClass::BLOCK_ROWS,
-              &state);
-
-    const size_t max_y = min(y + CudaArrayClass::TILE_SIZE, array.Height());
-
-    for (size_t j = y; j < max_y; j += CudaArrayClass::BLOCK_ROWS) {
-      array.set(x, j, func(&state));
+  for (size_t j = 0; j < CudaArrayClass::TILE_SIZE;
+       j += CudaArrayClass::BLOCK_ROWS) {
+    const auto value = func(&state);
+    if (x < array.Width() && y + j < array.Height()) {
+      array.set(x, y + j, value);
     }
+  }
 
-    // update the global random state
-    if (threadIdx.x == blockDim.x - 1 && threadIdx.y == blockDim.y - 1) {
-      rand_state.set(blockIdx.x, blockIdx.y, state);
-    }
+  // update the global random state
+  if (threadIdx.x == blockDim.x - 1 && threadIdx.y == blockDim.y - 1) {
+    rand_state.set(blockIdx.x, blockIdx.y, state);
   }
 }
 

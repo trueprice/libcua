@@ -36,7 +36,7 @@
 add_library(libcua INTERFACE)
 target_link_libraries(libcua INTERFACE ${CUDA_LIBRARIES})
 target_include_directories(libcua INTERFACE
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cudaArray>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libcua>
   $<INSTALL_INTERFACE:include>
 )
 
@@ -55,13 +55,13 @@ install(TARGETS libcua
   LIBRARY DESTINATION lib COMPONENT Runtime
   ARCHIVE DESTINATION lib COMPONENT Development
   RUNTIME DESTINATION bin COMPONENT Runtime
-  PUBLIC_HEADER DESTINATION include/cudaArray COMPONENT Development
+  PUBLIC_HEADER DESTINATION include/libcua COMPONENT Development
   BUNDLE DESTINATION bin COMPONENT Runtime
 )
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  "${PROJECT_SOURCE_DIR}/cudaArray/libcuaConfig.cmake.in"
+  "${PROJECT_SOURCE_DIR}/libcua/libcuaConfig.cmake.in"
   "${PROJECT_BINARY_DIR}/libcuaConfig.cmake"
   INSTALL_DESTINATION lib/cmake/libcua
 )
@@ -72,12 +72,12 @@ install(FILES
   "${PROJECT_BINARY_DIR}/libcuaConfig.cmake"
   DESTINATION lib/cmake/libcua)
 install(
-  DIRECTORY ${PROJECT_SOURCE_DIR}/cudaArray/
-  DESTINATION include/cudaArray
+  DIRECTORY ${PROJECT_SOURCE_DIR}/libcua/
+  DESTINATION include/libcua
   FILES_MATCHING PATTERN "*.h")
 
 add_custom_target(uninstall
   COMMAND ${CMAKE_COMMAND} -E remove_directory
     ${CMAKE_INSTALL_PREFIX}/lib/cmake/libcua
   COMMAND ${CMAKE_COMMAND} -E remove_directory
-    ${CMAKE_INSTALL_PREFIX}/include/cudaArray)
+    ${CMAKE_INSTALL_PREFIX}/include/libcua)

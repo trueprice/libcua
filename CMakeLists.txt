@@ -43,12 +43,12 @@ set(LIBCUA_PATCH_VERSION 0)
 set(LIBCUA_VERSION
     ${LIBCUA_MAJOR_VERSION}.${LIBCUA_MINOR_VERSION}.${LIBCUA_PATCH_VERSION})
 
-set (CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 
 find_package(CUDA REQUIRED)
 find_package(GTest)
 
-add_subdirectory(cudaArray)
+add_subdirectory(libcua)
 
 option(BUILD_TESTING "Enable tests" OFF)
 enable_testing()

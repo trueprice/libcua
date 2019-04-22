@@ -1,4 +1,4 @@
-// CudaArray: header-only library for interfacing with CUDA array-type objects
+// libcua: header-only library for interfacing with CUDA array-type objects
 // Author: True Price <jtprice at cs.unc.edu>
 //
 // BSD License

@@ -75,3 +75,9 @@ install(
   DIRECTORY ${PROJECT_SOURCE_DIR}/cudaArray/
   DESTINATION include/cudaArray
   FILES_MATCHING PATTERN "*.h")
+
+add_custom_target(uninstall
+  COMMAND ${CMAKE_COMMAND} -E remove_directory
+    ${CMAKE_INSTALL_PREFIX}/lib/cmake/libcua
+  COMMAND ${CMAKE_COMMAND} -E remove_directory
+    ${CMAKE_INSTALL_PREFIX}/include/cudaArray)

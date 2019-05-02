@@ -123,16 +123,6 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
   // array operations
 
   /**
-   * Create an empty array of the same size as the current array.
-   */
-  CudaTexture2D<T> EmptyCopy() const;
-
-  /**
-   * Create a new empty array with transposed dimensions (flipped height/width).
-   */
-  CudaTexture2D<T> EmptyFlippedCopy() const;
-
-  /**
    * Shallow re-assignment of the given array to share the contents of another.
    * @param other a separate array whose contents will now also be referenced by
    *   the current array
@@ -182,8 +172,6 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
    * @param y second coordinate, i.e., the row index in a row-major array
    * @return the interpolated value at array(x, y)
    */
-  // to properly use cudaReadModeNormalizedFloat, you'll need to specify the
-  // appropriate return type (e.g., float) in the template argument
   template <typename ReturnType = T>
   __device__ inline ReturnType interp(const float x, const float y) const {
     return tex2D<ReturnType>(shared_texture_.get_cuda_api_object(), x, y);

@@ -76,8 +76,7 @@ __global__ void CudaArray3DBaseCopy(const SrcCls src, DstCls dst) {
 // op: __device__ function mapping (x,y) -> CudaArrayClass::Scalar
 //
 template <typename CudaArrayClass, class Function>
-__global__ void CudaArray3DBaseApplyOp(CudaArrayClass array,
-                                                Function op) {
+__global__ void CudaArray3DBaseApplyOp(CudaArrayClass array, Function op) {
   const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
   const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
   const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
@@ -111,8 +110,8 @@ __global__ void CudaArray3DBaseFill(CudaArrayClass array, const T value) {
 template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
           typename RandomFunction>
 __global__ void CudaArray3DBaseFillRandom(CudaRandomStateArrayClass rand_state,
-                                         CudaArrayClass array,
-                                         RandomFunction func) {
+                                          CudaArrayClass array,
+                                          RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
   const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
   const size_t z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;

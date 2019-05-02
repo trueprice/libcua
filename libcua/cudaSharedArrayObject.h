@@ -180,14 +180,16 @@ class CudaSharedTextureObject
       const size_t width, const size_t height, const size_t depth = 1,
       const cudaTextureFilterMode filterMode = cudaFilterModePoint,
       const cudaTextureAddressMode addressMode = cudaAddressModeBorder,
-      const cudaTextureReadMode readMode = cudaReadModeElementType)
+      const cudaTextureReadMode readMode = cudaReadModeElementType,
+      const bool layered = false)
       : CudaSharedArrayObject<T, cudaTextureObject_t,
                               cudaDestroyTextureObject>() {
     cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc<T>();
 
-    if (depth > 1) {
+    if (depth > 1 || layered) {
       const cudaExtent dims = make_cudaExtent(width, height, depth);
-      cudaMalloc3DArray(&this->dev_array, &channel_desc, dims);
+      unsigned int cudaFlags = layered ? cudaArrayLayered : 0;
+      cudaMalloc3DArray(&this->dev_array, &channel_desc, dims, cudaFlags);
     } else {
       cudaMallocArray(&this->dev_array, &channel_desc, width, height);
     }

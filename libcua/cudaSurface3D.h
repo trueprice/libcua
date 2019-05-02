@@ -69,7 +69,7 @@ namespace cua {
 template <typename Derived>
 class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   // inherited classes will need to declare get(), set(), typedef Scalar, and
-  // static bool IS_LAYERED
+  // typedef std::<true/false>_type IsLayered
 
  public:
   friend class CudaArray3DBase<Derived>;
@@ -227,7 +227,7 @@ CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
     : Base(width, height, depth, block_dim, stream),
       boundary_mode_(boundary_mode),
       shared_surface_(width, height, depth,
-                      CudaArrayTraits<Derived>::IS_LAYERED),
+                      CudaArrayTraits<Derived>::IsLayered::value),
       x_offset_(0),
       y_offset_(0),
       z_offset_(0) {}
@@ -426,14 +426,14 @@ template <typename T>
 struct CudaArrayTraits<CudaSurface2DArray<T>> {
   typedef T Scalar;
   typedef bool Mutable;
-  static const bool IS_LAYERED = true;
+  typedef std::true_type IsLayered;
 };
 
 template <typename T>
 struct CudaArrayTraits<CudaSurface3D<T>> {
   typedef T Scalar;
   typedef bool Mutable;
-  static const bool IS_LAYERED = false;
+  typedef std::false_type IsLayered;
 };
 
 }  // namespace cua

@@ -85,9 +85,9 @@ __global__ void CudaArray2DBaseFill(CudaArrayClass array, const T value) {
 //
 template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
           typename RandomFunction>
-__global__ void CudaArray2DBaseFillRandom(
-    CudaRandomStateArrayClass rand_state, CudaArrayClass array,
-    RandomFunction func) {
+__global__ void CudaArray2DBaseFillRandom(CudaRandomStateArrayClass rand_state,
+                                          CudaArrayClass array,
+                                          RandomFunction func) {
   const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
   const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
 

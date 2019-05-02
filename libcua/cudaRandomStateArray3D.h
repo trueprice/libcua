@@ -100,7 +100,7 @@ namespace kernel {
 // initialize an array of random generators
 //
 __global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
-                                                   size_t seed) {
+                                           size_t seed) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x;
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
   const int z = blockIdx.z * blockDim.z + threadIdx.z;

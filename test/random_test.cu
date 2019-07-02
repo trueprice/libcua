@@ -64,8 +64,8 @@ class CudaRandomArray2DTest
                         size_t seed = 0)
       : array_(width, height),
         random_state_(
-            (width + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
-            (height + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            (width + CudaArrayType::kTileSize - 1) / CudaArrayType::kTileSize,
+            (height + CudaArrayType::kTileSize - 1) / CudaArrayType::kTileSize,
             seed) {}
 
   //----------------------------------------------------------------------------
@@ -121,9 +121,9 @@ class CudaRandomArray3DTest
                         size_t depth = 100, size_t seed = 0)
       : array_(width, height, depth),
         random_state_(
-            (width + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
-            (height + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
-            (depth + CudaArrayType::TILE_SIZE - 1) / CudaArrayType::TILE_SIZE,
+            (width + CudaArrayType::kTileSize - 1) / CudaArrayType::kTileSize,
+            (height + CudaArrayType::kTileSize - 1) / CudaArrayType::kTileSize,
+            (depth + CudaArrayType::kTileSize - 1) / CudaArrayType::kTileSize,
             seed) {}
 
   //----------------------------------------------------------------------------

@@ -114,13 +114,13 @@ class CudaArray2DBase {
   typedef LIBCUA_DEFAULT_INDEX_TYPE IndexType;
 
   /// default block dimensions for general operations
-  static const dim3 BLOCK_DIM;
+  static const dim3 kBlockDim;
 
   /// operate on blocks of this width for, e.g., transpose
-  static const SizeType TILE_SIZE;
+  static const SizeType kTileSize;
 
   /// number of rows to iterate over per thread for, e.g., transpose
-  static const SizeType BLOCK_ROWS;
+  static const SizeType kBlockRows;
 
   //----------------------------------------------------------------------------
   // constructors and derived()
@@ -135,7 +135,7 @@ class CudaArray2DBase {
    * @param stream CUDA stream for this array object
    */
   CudaArray2DBase(SizeType width, SizeType height,
-                  const dim3 block_dim = CudaArray2DBase<Derived>::BLOCK_DIM,
+                  const dim3 block_dim = CudaArray2DBase<Derived>::kBlockDim,
                   const cudaStream_t stream = 0);  // default stream
 
   /**
@@ -478,15 +478,15 @@ class CudaArray2DBase {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-const dim3 CudaArray2DBase<Derived>::BLOCK_DIM = dim3(32, 32);
+const dim3 CudaArray2DBase<Derived>::kBlockDim = dim3(32, 32);
 
 template <typename Derived>
 const typename CudaArray2DBase<Derived>::SizeType
-    CudaArray2DBase<Derived>::TILE_SIZE = 32;
+    CudaArray2DBase<Derived>::kTileSize = 32;
 
 template <typename Derived>
 const typename CudaArray2DBase<Derived>::SizeType
-    CudaArray2DBase<Derived>::BLOCK_ROWS = 4;
+    CudaArray2DBase<Derived>::kBlockRows = 4;
 
 //------------------------------------------------------------------------------
 //
@@ -546,9 +546,9 @@ template <typename CurandStateArrayType, typename RandomFunction, class C,
           typename C::Mutable is_mutable>
 inline void CudaArray2DBase<Derived>::FillRandom(
     CurandStateArrayType rand_state, RandomFunction func) {
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
+  const dim3 block_dim(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
 
   kernel::CudaArray2DBaseFillRandom<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);
@@ -563,9 +563,9 @@ inline void CudaArray2DBase<Derived>::FillRandom(
 template <typename Derived>
 ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::FlipLR(
     Derived &other) const {
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
+  const dim3 block_dim(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
 
   kernel::CudaArray2DBaseFlipLR<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -578,9 +578,9 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::FlipLR(
 template <typename Derived>
 ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::FlipUD(
     Derived &other) const {
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
+  const dim3 block_dim(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
 
   kernel::CudaArray2DBaseFlipUD<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -595,10 +595,10 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Rot180(
     Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
-  // CudaArray2DBase<Derived>::BLOCK_ROWS
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
+  // CudaArray2DBase<Derived>::kBlockRows
+  const dim3 block_dim(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
 
   kernel::CudaArray2DBaseRot180<<<grid_dim, block_dim, 0, stream_>>>(derived(),
                                                                      other);
@@ -613,11 +613,11 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Rot90_CCW(
     Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
-  // CudaArray2DBase<Derived>::BLOCK_ROWS
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  // CudaArray2DBase<Derived>::kBlockRows
+  const dim3 block_dim(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
+  const unsigned int shm_size = kTileSize * kTileSize * sizeof(Scalar);
 
   kernel::CudaArray2DBaseRot90_CCW<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);
@@ -632,11 +632,11 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Rot90_CW(
     Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
-  // CudaArray2DBase<Derived>::BLOCK_ROWS
-  const dim3 block_dim = dim3(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  // CudaArray2DBase<Derived>::kBlockRows
+  const dim3 block_dim = dim3(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
+  const unsigned int shm_size = kTileSize * kTileSize * sizeof(Scalar);
 
   kernel::CudaArray2DBaseRot90_CW<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);
@@ -651,11 +651,11 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Transpose(
     Derived &other) const {
   // compute down columns; the width should be equal to the width of a CUDA
   // thread warp; the number of rows that each block covers is equal to
-  // CudaArray2DBase<Derived>::BLOCK_ROWS
-  const dim3 block_dim = dim3(TILE_SIZE, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  // CudaArray2DBase<Derived>::kBlockRows
+  const dim3 block_dim = dim3(kTileSize, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize);
+  const unsigned int shm_size = kTileSize * kTileSize * sizeof(Scalar);
 
   kernel::CudaArray2DBaseTranspose<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);

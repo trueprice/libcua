@@ -114,25 +114,25 @@ template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
 __global__ void CudaArray3DBaseFillRandom(CudaRandomStateArrayClass rand_state,
                                           CudaArrayClass array,
                                           RandomFunction func) {
-  const unsigned int x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
-  const unsigned int y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
-  const unsigned int z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;
+  const unsigned int x = blockIdx.x * CudaArrayClass::kTileSize + threadIdx.x;
+  const unsigned int y = blockIdx.y * CudaArrayClass::kTileSize + threadIdx.y;
+  const unsigned int z = blockIdx.z * CudaArrayClass::kTileSize + threadIdx.z;
 
-  // Each thread processes BLOCK_ROWS contiguous rows in y, and then repeats
-  // this for BLOCK_ROWS contiguous depth rows in z.
+  // Each thread processes kBlockRows contiguous rows in y, and then repeats
+  // this for kBlockRows contiguous depth rows in z.
 
   curandState_t state = rand_state.get(blockIdx.x, blockIdx.y, blockIdx.z);
   skipahead(static_cast<unsigned long long>(
-                ((threadIdx.z * CudaArrayClass::BLOCK_ROWS + threadIdx.y) *
-                     CudaArrayClass::TILE_SIZE +
+                ((threadIdx.z * CudaArrayClass::kBlockRows + threadIdx.y) *
+                     CudaArrayClass::kTileSize +
                  threadIdx.x) *
-                CudaArrayClass::BLOCK_ROWS * CudaArrayClass::BLOCK_ROWS),
+                CudaArrayClass::kBlockRows * CudaArrayClass::kBlockRows),
             &state);
 
-  for (unsigned int k = 0; k < CudaArrayClass::TILE_SIZE;
-       k += CudaArrayClass::BLOCK_ROWS) {
-    for (unsigned int j = 0; j < CudaArrayClass::TILE_SIZE;
-         j += CudaArrayClass::BLOCK_ROWS) {
+  for (unsigned int k = 0; k < CudaArrayClass::kTileSize;
+       k += CudaArrayClass::kBlockRows) {
+    for (unsigned int j = 0; j < CudaArrayClass::kTileSize;
+         j += CudaArrayClass::kBlockRows) {
       const auto value = func(&state);
       if (x < array.Width() && y + j < array.Height() &&
           z + k < array.Depth()) {
@@ -217,13 +217,13 @@ class CudaArray3DBase {
   typedef LIBCUA_DEFAULT_INDEX_TYPE IndexType;
 
   /// default block dimensions for general operations
-  static const dim3 BLOCK_DIM;
+  static const dim3 kBlockDim;
 
   /// operate on blocks of this width for, e.g., FillRandom
-  static const SizeType TILE_SIZE;
+  static const SizeType kTileSize;
 
   /// number of rows to iterate over per thread for, e.g., FillRandom
-  static const SizeType BLOCK_ROWS;
+  static const SizeType kBlockRows;
 
   //----------------------------------------------------------------------------
   // constructors and derived()
@@ -238,7 +238,7 @@ class CudaArray3DBase {
    * @param stream CUDA stream for this array object
    */
   CudaArray3DBase(SizeType width, SizeType height, SizeType depth,
-                  const dim3 block_dim = CudaArray3DBase<Derived>::BLOCK_DIM,
+                  const dim3 block_dim = CudaArray3DBase<Derived>::kBlockDim,
                   const cudaStream_t stream = 0);  // default stream
 
   /**
@@ -443,15 +443,15 @@ class CudaArray3DBase {
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-const dim3 CudaArray3DBase<Derived>::BLOCK_DIM = dim3(32, 8, 4);
+const dim3 CudaArray3DBase<Derived>::kBlockDim = dim3(32, 8, 4);
 
 template <typename Derived>
 const typename CudaArray3DBase<Derived>::SizeType
-    CudaArray3DBase<Derived>::TILE_SIZE = 32;
+    CudaArray3DBase<Derived>::kTileSize = 32;
 
 template <typename Derived>
 const typename CudaArray3DBase<Derived>::SizeType
-    CudaArray3DBase<Derived>::BLOCK_ROWS = 4;
+    CudaArray3DBase<Derived>::kBlockRows = 4;
 
 //------------------------------------------------------------------------------
 //
@@ -514,10 +514,10 @@ template <typename CurandStateArrayType, typename RandomFunction, class C,
           typename C::Mutable is_mutable>
 inline void CudaArray3DBase<Derived>::FillRandom(
     CurandStateArrayType rand_state, RandomFunction func) {
-  const dim3 block_dim(TILE_SIZE, BLOCK_ROWS, BLOCK_ROWS);
-  const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (height_ + TILE_SIZE - 1) / TILE_SIZE,
-                      (depth_ + TILE_SIZE - 1) / TILE_SIZE);
+  const dim3 block_dim(kTileSize, kBlockRows, kBlockRows);
+  const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
+                      (height_ + kTileSize - 1) / kTileSize,
+                      (depth_ + kTileSize - 1) / kTileSize);
 
   kernel::CudaArray3DBaseFillRandom<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);

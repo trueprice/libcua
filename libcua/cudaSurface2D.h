@@ -100,7 +100,7 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    */
   CudaSurface2D(
       SizeType width, SizeType height,
-      const dim3 block_dim = CudaSurface2D<T>::BLOCK_DIM,
+      const dim3 block_dim = CudaSurface2D<T>::kBlockDim,
       const cudaStream_t stream = 0,  // default stream
       const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero);
 

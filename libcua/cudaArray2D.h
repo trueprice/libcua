@@ -94,7 +94,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param stream CUDA stream for this array object
    */
   CudaArray2D(SizeType width, SizeType height,
-              const dim3 block_dim = CudaArray2D<T>::BLOCK_DIM,
+              const dim3 block_dim = CudaArray2D<T>::kBlockDim,
               const cudaStream_t stream = 0);  // default stream
 
   /**

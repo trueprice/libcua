@@ -115,7 +115,7 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
-      const dim3 block_dim = CudaTexture3DBase<Derived>::BLOCK_DIM,
+      const dim3 block_dim = CudaTexture3DBase<Derived>::kBlockDim,
       const cudaStream_t stream = 0);  // default stream
 
   /**

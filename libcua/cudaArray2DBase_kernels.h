@@ -91,19 +91,19 @@ __global__ void CudaArray2DBaseFillRandom(CudaRandomStateArrayClass rand_state,
                                           CudaArrayClass array,
                                           RandomFunction func) {
   const typename CudaArrayClass::IndexType x =
-      blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
+      blockIdx.x * CudaArrayClass::kTileSize + threadIdx.x;
   const typename CudaArrayClass::IndexType y =
-      blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
+      blockIdx.y * CudaArrayClass::kTileSize + threadIdx.y;
 
-  // Each thread processes BLOCK_ROWS contiguous rows in y.
+  // Each thread processes kBlockRows contiguous rows in y.
   curandState_t state = rand_state.get(blockIdx.x, blockIdx.y);
   skipahead(static_cast<unsigned long long>(
-                (threadIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.x) *
-                CudaArrayClass::BLOCK_ROWS),
+                (threadIdx.y * CudaArrayClass::kTileSize + threadIdx.x) *
+                CudaArrayClass::kBlockRows),
             &state);
 
-  for (typename CudaArrayClass::IndexType j = 0; j < CudaArrayClass::TILE_SIZE;
-       j += CudaArrayClass::BLOCK_ROWS) {
+  for (typename CudaArrayClass::IndexType j = 0; j < CudaArrayClass::kTileSize;
+       j += CudaArrayClass::kBlockRows) {
     const auto value = func(&state);
     if (x < array.Width() && y + j < array.Height()) {
       array.set(x, y + j, value);
@@ -146,16 +146,16 @@ __global__ void CudaArray2DBaseGet(CudaArrayClass array, const T *value,
 //
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseTranspose(const SrcCls src, DstCls dst) {
-  __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
+  __shared__ typename SrcCls::Scalar tile[SrcCls::kTileSize][SrcCls::kTileSize];
 
-  typename SrcCls::IndexType x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
-  typename SrcCls::IndexType y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+  typename SrcCls::IndexType x = blockIdx.x * SrcCls::kTileSize + threadIdx.x;
+  typename SrcCls::IndexType y = blockIdx.y * SrcCls::kTileSize + threadIdx.y;
 
   if (x < src.Width()) {
     const typename SrcCls::SizeType max_y =
-        min(y + SrcCls::TILE_SIZE, src.Height());
+        min(y + SrcCls::kTileSize, src.Height());
     for (typename SrcCls::IndexType j = 0; (y + j) < max_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       tile[threadIdx.y + j][threadIdx.x] = src.get(x, y + j);
     }
   }
@@ -163,14 +163,14 @@ __global__ void CudaArray2DBaseTranspose(const SrcCls src, DstCls dst) {
   __syncthreads();
 
   // note we still iterate down columns to ensure coalesced memory access
-  x = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.x;
-  y = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y;
+  x = blockIdx.y * SrcCls::kTileSize + threadIdx.x;
+  y = blockIdx.x * SrcCls::kTileSize + threadIdx.y;
 
   if (x < dst.Width()) {
     const typename SrcCls::SizeType max_y =
-        min(y + SrcCls::TILE_SIZE, dst.Height());
+        min(y + SrcCls::kTileSize, dst.Height());
     for (typename SrcCls::IndexType j = 0; (y + j) < max_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       dst.set(x, y + j, tile[threadIdx.x][threadIdx.y + j]);
     }
   }
@@ -191,17 +191,17 @@ __global__ void CudaArray2DBaseTranspose(const SrcCls src, DstCls dst) {
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseFlipLR(const SrcCls src, DstCls dst) {
   const typename SrcCls::IndexType x =
-      blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
+      blockIdx.x * SrcCls::kTileSize + threadIdx.x;
 
   const typename SrcCls::SizeType w = src.Width();
 
   if (x < w) {
     const typename SrcCls::IndexType y =
-        blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+        blockIdx.y * SrcCls::kTileSize + threadIdx.y;
     const typename SrcCls::SizeType h = src.Height();
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, h);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, h);
 
-    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
+    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::kBlockRows) {
       dst.set(w - x - 1, j, src.get(x, j));
     }
   }
@@ -212,17 +212,17 @@ __global__ void CudaArray2DBaseFlipLR(const SrcCls src, DstCls dst) {
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseFlipUD(const SrcCls src, DstCls dst) {
   const typename SrcCls::IndexType x =
-      blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
+      blockIdx.x * SrcCls::kTileSize + threadIdx.x;
 
   const typename SrcCls::SizeType w = src.Width();
 
   if (x < w) {
     const typename SrcCls::IndexType y =
-        blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+        blockIdx.y * SrcCls::kTileSize + threadIdx.y;
     const typename SrcCls::SizeType h = src.Height();
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, h);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, h);
 
-    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
+    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::kBlockRows) {
       dst.set(x, h - j - 1, src.get(x, j));
     }
   }
@@ -233,17 +233,17 @@ __global__ void CudaArray2DBaseFlipUD(const SrcCls src, DstCls dst) {
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseRot180(const SrcCls src, DstCls dst) {
   const typename SrcCls::IndexType x =
-      blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
+      blockIdx.x * SrcCls::kTileSize + threadIdx.x;
 
   const typename SrcCls::SizeType w = src.Width();
 
   if (x < w) {
     const typename SrcCls::IndexType y =
-        blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+        blockIdx.y * SrcCls::kTileSize + threadIdx.y;
     const typename SrcCls::SizeType h = src.Height();
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, h);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, h);
 
-    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::BLOCK_ROWS) {
+    for (typename SrcCls::IndexType j = y; j < max_y; j += SrcCls::kBlockRows) {
       dst.set(w - x - 1, h - j - 1, src.get(x, j));
     }
   }
@@ -253,18 +253,18 @@ __global__ void CudaArray2DBaseRot180(const SrcCls src, DstCls dst) {
 
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseRot90_CCW(const SrcCls src, DstCls dst) {
-  __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
+  __shared__ typename SrcCls::Scalar tile[SrcCls::kTileSize][SrcCls::kTileSize];
 
-  typename SrcCls::IndexType x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
-  typename SrcCls::IndexType y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+  typename SrcCls::IndexType x = blockIdx.x * SrcCls::kTileSize + threadIdx.x;
+  typename SrcCls::IndexType y = blockIdx.y * SrcCls::kTileSize + threadIdx.y;
 
   const typename SrcCls::SizeType w = src.Width();
   const typename SrcCls::SizeType h = src.Height();
 
   if (x < w) {
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, h);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, h);
     for (typename SrcCls::IndexType j = 0; (y + j) < max_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       tile[threadIdx.y + j][threadIdx.x] = src.get(x, y + j);
     }
   }
@@ -272,14 +272,14 @@ __global__ void CudaArray2DBaseRot90_CCW(const SrcCls src, DstCls dst) {
   __syncthreads();
 
   // note we still iterate down columns to ensure coalesced memory access
-  x = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.x;            // L to R
-  y = w - 1 - (blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y);  // B to T
+  x = blockIdx.y * SrcCls::kTileSize + threadIdx.x;            // L to R
+  y = w - 1 - (blockIdx.x * SrcCls::kTileSize + threadIdx.y);  // B to T
 
   if (x < h) {
     const typename SrcCls::SizeType min_y =
-        max(y - static_cast<int>(SrcCls::TILE_SIZE) + 1, 0);
+        max(y - static_cast<int>(SrcCls::kTileSize) + 1, 0);
     for (typename SrcCls::IndexType j = 0; (y - j) >= min_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       dst.set(x, y - j, tile[threadIdx.x][threadIdx.y + j]);
     }
   }
@@ -289,18 +289,18 @@ __global__ void CudaArray2DBaseRot90_CCW(const SrcCls src, DstCls dst) {
 
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray2DBaseRot90_CW(const SrcCls src, DstCls dst) {
-  __shared__ typename SrcCls::Scalar tile[SrcCls::TILE_SIZE][SrcCls::TILE_SIZE];
+  __shared__ typename SrcCls::Scalar tile[SrcCls::kTileSize][SrcCls::kTileSize];
 
-  typename SrcCls::IndexType x = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.x;
-  typename SrcCls::IndexType y = blockIdx.y * SrcCls::TILE_SIZE + threadIdx.y;
+  typename SrcCls::IndexType x = blockIdx.x * SrcCls::kTileSize + threadIdx.x;
+  typename SrcCls::IndexType y = blockIdx.y * SrcCls::kTileSize + threadIdx.y;
 
   const typename SrcCls::SizeType w = src.Width();
   const typename SrcCls::SizeType h = src.Height();
 
   if (x < w) {
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, h);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, h);
     for (typename SrcCls::IndexType j = 0; (y + j) < max_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       tile[threadIdx.y + j][threadIdx.x] = src.get(x, y + j);
     }
   }
@@ -308,13 +308,13 @@ __global__ void CudaArray2DBaseRot90_CW(const SrcCls src, DstCls dst) {
   __syncthreads();
 
   // note we still iterate down columns to ensure coalesced memory access
-  x = h - 1 - (blockIdx.y * SrcCls::TILE_SIZE + threadIdx.x);  // R to L
-  y = blockIdx.x * SrcCls::TILE_SIZE + threadIdx.y;            // T to B
+  x = h - 1 - (blockIdx.y * SrcCls::kTileSize + threadIdx.x);  // R to L
+  y = blockIdx.x * SrcCls::kTileSize + threadIdx.y;            // T to B
 
   if (x >= 0) {
-    const typename SrcCls::SizeType max_y = min(y + SrcCls::TILE_SIZE, w);
+    const typename SrcCls::SizeType max_y = min(y + SrcCls::kTileSize, w);
     for (typename SrcCls::IndexType j = 0; (y + j) < max_y;
-         j += SrcCls::BLOCK_ROWS) {
+         j += SrcCls::kBlockRows) {
       dst.set(x, y + j, tile[threadIdx.x][threadIdx.y + j]);
     }
   }

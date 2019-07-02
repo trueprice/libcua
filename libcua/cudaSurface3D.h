@@ -109,7 +109,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    */
   CudaSurface3DBase(
       SizeType width, SizeType height, SizeType depth,
-      const dim3 block_dim = CudaSurface3DBase<Derived>::BLOCK_DIM,
+      const dim3 block_dim = CudaSurface3DBase<Derived>::kBlockDim,
       const cudaStream_t stream = 0,  // default stream
       const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero);
 

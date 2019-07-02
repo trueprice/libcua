@@ -110,7 +110,7 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
-      const dim3 block_dim = CudaTexture2D<T>::BLOCK_DIM,
+      const dim3 block_dim = CudaTexture2D<T>::kBlockDim,
       const cudaStream_t stream = 0);  // default stream
 
   /**

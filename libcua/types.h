@@ -1,0 +1,12 @@
+#ifndef LIBCUA_TYPES_H_
+#define LIBCUA_TYPES_H_
+
+#ifndef LIBCUA_DEFAULT_SIZE_TYPE
+#define LIBCUA_DEFAULT_SIZE_TYPE unsigned int
+#endif  // LIBCUA_DEFAULT_SIZE_TYPE
+
+#ifndef LIBCUA_DEFAULT_INDEX_TYPE
+#define LIBCUA_DEFAULT_INDEX_TYPE unsigned int
+#endif  // LIBCUA_DEFAULT_INDEX_TYPE
+
+#endif  // LIBCUA_TYPES_H_

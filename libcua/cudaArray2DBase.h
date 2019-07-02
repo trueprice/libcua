@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_ARRAY2D_BASE_H_
-#define CUDA_ARRAY2D_BASE_H_
+#ifndef LIBCUA_CUDA_ARRAY2D_BASE_H_
+#define LIBCUA_CUDA_ARRAY2D_BASE_H_
 
 #include "cudaArray2DBase_kernels.h"
 
@@ -42,6 +42,8 @@
 
 #include <curand.h>
 #include <curand_kernel.h>
+
+#include "types.h"
 
 namespace cua {
 
@@ -68,7 +70,7 @@ struct CudaArrayTraits;  // forward declaration
  *    perform host-specific instructions
  *    - `__host__ __device__ Derived(const Derived &other);`
  * -  get(): read from array position
- *    - `__device__ inline Scalar get(const size_t x, const size_t y) const;`
+ *    - `__device__ inline Scalar get(unsigned int x, unsigned int y) const;`
  *
  * These methods are suggested for getting data to/from the CPU:
  *
@@ -85,7 +87,7 @@ struct CudaArrayTraits;  // forward declaration
  *    - `Derived EmptyFlippedCopy() const;`
  * -  set(): write to array position (optional for readonly subclasses)
  *    - `__device__
- *       inline void set(const size_t x, const size_t y, Scalar value);`
+ *       inline void set(unsigned int x, unsigned int y, Scalar value);`
  *
  * Also, any derived class will need to separately declare a CudaArrayTraits
  * struct instantiation with a "Scalar" member, e.g.,
@@ -105,14 +107,20 @@ class CudaArray2DBase {
   /// datatype of the array
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
+  /// size type of the array
+  typedef LIBCUA_DEFAULT_SIZE_TYPE SizeType;
+
+  /// index type of the array
+  typedef LIBCUA_DEFAULT_INDEX_TYPE IndexType;
+
   /// default block dimensions for general operations
   static const dim3 BLOCK_DIM;
 
   /// operate on blocks of this width for, e.g., transpose
-  static const size_t TILE_SIZE;
+  static const SizeType TILE_SIZE;
 
   /// number of rows to iterate over per thread for, e.g., transpose
-  static const size_t BLOCK_ROWS;
+  static const SizeType BLOCK_ROWS;
 
   //----------------------------------------------------------------------------
   // constructors and derived()
@@ -126,7 +134,7 @@ class CudaArray2DBase {
    *   dimension is computed automatically based on the array size
    * @param stream CUDA stream for this array object
    */
-  CudaArray2DBase(const size_t width, const size_t height,
+  CudaArray2DBase(SizeType width, SizeType height,
                   const dim3 block_dim = CudaArray2DBase<Derived>::BLOCK_DIM,
                   const cudaStream_t stream = 0);  // default stream
 
@@ -324,9 +332,9 @@ class CudaArray2DBase {
   //----------------------------------------------------------------------------
   // getters/setters
 
-  __host__ __device__ inline size_t Width() const { return width_; }
-  __host__ __device__ inline size_t Height() const { return height_; }
-  __host__ __device__ inline size_t Size() const { return width_ * height_; }
+  __host__ __device__ inline SizeType Width() const { return width_; }
+  __host__ __device__ inline SizeType Height() const { return height_; }
+  __host__ __device__ inline SizeType Size() const { return width_ * height_; }
 
   __host__ __device__ inline dim3 BlockDim() const { return block_dim_; }
   __host__ __device__ inline dim3 GridDim() const { return grid_dim_; }
@@ -347,7 +355,7 @@ class CudaArray2DBase {
    * @param v the new value to assign to array(x, y)
    */
   ENABLE_IF_MUTABLE
-  inline void SetValue(const size_t x, const size_t y, const Scalar value) {
+  inline void SetValue(IndexType x, IndexType y, const Scalar value) {
     if (x >= width_ || y >= height_) {
       throw "Error: CudaArray2DBase Address out of bounds in SetValue().";
     }
@@ -361,7 +369,7 @@ class CudaArray2DBase {
    * @param y second coordinate, i.e., the row index in a row-major array
    * @return the value at array(x, y)
    */
-  inline Scalar GetValue(const size_t x, const size_t y) const {
+  inline Scalar GetValue(IndexType x, IndexType y) const {
     if (x >= width_ || y >= height_) {
       throw "Error: CudaArray2DBase Address out of bounds in GetValue().";
     }
@@ -385,7 +393,7 @@ class CudaArray2DBase {
    *
    *      // Array2DType arr1, arr2
    *      // Array2DType out
-   *      out.apply_op([arr1, arr2] __device__(const size_t x, const size_t y) {
+   *      out.apply_op([arr1, arr2] __device__(unsigned int x, unsigned int y) {
    *        return arr1.get(x, y) + arr2.get(x, y);  // stored in out(x, y)
    *      });
    *
@@ -395,7 +403,7 @@ class CudaArray2DBase {
    */
   template <class Function, class C = CudaArrayTraits<Derived>,
             typename C::Mutable is_mutable = true>
-  inline void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
+  inline void ApplyOp(Function op, const unsigned int shared_mem_bytes = 0) {
     kernel::CudaArray2DBaseApplyOp<<<grid_dim_, block_dim_, shared_mem_bytes,
                                      stream_>>>(derived(), op);
   }
@@ -408,7 +416,7 @@ class CudaArray2DBase {
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray2DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y) {
           return tmp.get(x, y) + value;
         });
   }
@@ -421,7 +429,7 @@ class CudaArray2DBase {
   inline void operator-=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray2DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y) {
           return tmp.get(x, y) - value;
         });
   }
@@ -434,7 +442,7 @@ class CudaArray2DBase {
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray2DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y) {
           return tmp.get(x, y) * value;
         });
   }
@@ -447,7 +455,7 @@ class CudaArray2DBase {
   inline void operator/=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray2DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(const size_t x, const size_t y) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y) {
           return tmp.get(x, y) / value;
         });
   }
@@ -456,7 +464,7 @@ class CudaArray2DBase {
   // protected class methods and fields
 
  protected:
-  size_t width_, height_;
+  SizeType width_, height_;
 
   dim3 block_dim_, grid_dim_;  // for calling kernels
 
@@ -473,10 +481,12 @@ template <typename Derived>
 const dim3 CudaArray2DBase<Derived>::BLOCK_DIM = dim3(32, 32);
 
 template <typename Derived>
-const size_t CudaArray2DBase<Derived>::TILE_SIZE = 32;
+const typename CudaArray2DBase<Derived>::SizeType
+    CudaArray2DBase<Derived>::TILE_SIZE = 32;
 
 template <typename Derived>
-const size_t CudaArray2DBase<Derived>::BLOCK_ROWS = 4;
+const typename CudaArray2DBase<Derived>::SizeType
+    CudaArray2DBase<Derived>::BLOCK_ROWS = 4;
 
 //------------------------------------------------------------------------------
 //
@@ -485,8 +495,8 @@ const size_t CudaArray2DBase<Derived>::BLOCK_ROWS = 4;
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaArray2DBase<Derived>::CudaArray2DBase<Derived>(const size_t width,
-                                                   const size_t height,
+CudaArray2DBase<Derived>::CudaArray2DBase<Derived>(SizeType width,
+                                                   SizeType height,
                                                    const dim3 block_dim,
                                                    const cudaStream_t stream)
     : width_(width), height_(height), stream_(stream) {
@@ -607,7 +617,7 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Rot90_CCW(
   const dim3 block_dim(TILE_SIZE, BLOCK_ROWS);
   const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
                       (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const size_t shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
 
   kernel::CudaArray2DBaseRot90_CCW<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);
@@ -626,7 +636,7 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Rot90_CW(
   const dim3 block_dim = dim3(TILE_SIZE, BLOCK_ROWS);
   const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
                       (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const size_t shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
 
   kernel::CudaArray2DBaseRot90_CW<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);
@@ -645,7 +655,7 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Transpose(
   const dim3 block_dim = dim3(TILE_SIZE, BLOCK_ROWS);
   const dim3 grid_dim((width_ + TILE_SIZE - 1) / TILE_SIZE,
                       (height_ + TILE_SIZE - 1) / TILE_SIZE);
-  const size_t shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
+  const unsigned int shm_size = TILE_SIZE * TILE_SIZE * sizeof(Scalar);
 
   kernel::CudaArray2DBaseTranspose<<<grid_dim, block_dim, shm_size, stream_>>>(
       derived(), other);
@@ -658,4 +668,4 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Transpose(
 
 }  // namespace cua
 
-#endif  // CUDA_ARRAY2D_BASE_H_
+#endif  // LIBCUA_CUDA_ARRAY2D_BASE_H_

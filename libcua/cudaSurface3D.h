@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_SURFACE3D_H_
-#define CUDA_SURFACE3D_H_
+#ifndef LIBCUA_CUDA_SURFACE3D_H_
+#define LIBCUA_CUDA_SURFACE3D_H_
 
 #include "cudaArray3DBase.h"
 #include "cudaSharedArrayObject.h"
@@ -78,6 +78,8 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
   typedef CudaArray3DBase<Derived> Base;
+  typedef typename Base::SizeType SizeType;
+  typedef typename Base::IndexType IndexType;
 
  protected:
   // for convenience, reference base class members directly (they are otherwise
@@ -106,7 +108,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    *   extents of the array
    */
   CudaSurface3DBase(
-      const size_t width, const size_t height, const size_t depth,
+      SizeType width, SizeType height, SizeType depth,
       const dim3 block_dim = CudaSurface3DBase<Derived>::BLOCK_DIM,
       const cudaStream_t stream = 0,  // default stream
       const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero);
@@ -130,9 +132,8 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    * @return new CudaSurface3D view whose underlying device pointer and size is
    * aligned with the view
    */
-  inline Derived View(const size_t x, const size_t y, const size_t z,
-                      const size_t width, const size_t height,
-                      const size_t depth) const {
+  inline Derived View(IndexType x, IndexType y, IndexType z, SizeType width,
+                      SizeType height, SizeType depth) const {
     return CudaSurface3DBase<Derived>(x, y, z, width, height, depth, *this)
         .derived();
   }
@@ -196,7 +197,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
 
   cudaSurfaceBoundaryMode boundary_mode_;
 
-  size_t x_offset_, y_offset_, z_offset_;
+  IndexType x_offset_, y_offset_, z_offset_;
 
  private:
   /**
@@ -208,8 +209,8 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    * @param height height of the view
    * @param depth depth of the view
    */
-  CudaSurface3DBase(const size_t x, const size_t y, const size_t z,
-                    const size_t width, const size_t height, const size_t depth,
+  CudaSurface3DBase(IndexType x, IndexType y, IndexType z, SizeType width,
+                    SizeType height, SizeType depth,
                     const CudaSurface3DBase<Derived> &other);
 };
 
@@ -221,7 +222,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
 
 template <typename Derived>
 CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
-    const size_t width, const size_t height, const size_t depth,
+    SizeType width, SizeType height, SizeType depth,
     const dim3 block_dim, const cudaStream_t stream,
     const cudaSurfaceBoundaryMode boundary_mode)
     : Base(width, height, depth, block_dim, stream),
@@ -250,9 +251,8 @@ __host__ __device__ CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
 // host-level private constructor for creating views
 template <typename Derived>
 CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
-    const size_t x, const size_t y, const size_t z, const size_t width,
-    const size_t height, const size_t depth,
-    const CudaSurface3DBase<Derived> &other)
+    IndexType x, IndexType y, IndexType z, SizeType width, SizeType height,
+    SizeType depth, const CudaSurface3DBase<Derived> &other)
     : Base(width, height, depth, other.block_dim_, other.stream_),
       boundary_mode_(other.boundary_mode_),
       shared_surface_(other.shared_surface_),
@@ -438,4 +438,4 @@ struct CudaArrayTraits<CudaSurface3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDA_SURFACE3D_H_
+#endif  // LIBCUA_CUDA_SURFACE3D_H_

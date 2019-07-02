@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_TEXTURE2D_H_
-#define CUDA_TEXTURE2D_H_
+#ifndef LIBCUA_CUDA_TEXTURE2D_H_
+#define LIBCUA_CUDA_TEXTURE2D_H_
 
 #include "cudaArray2DBase.h"
 #include "cudaSharedArrayObject.h"
@@ -73,6 +73,8 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
   typedef T Scalar;
 
   typedef CudaArray2DBase<CudaTexture2D<T>> Base;
+  typedef typename Base::SizeType SizeType;
+  typedef typename Base::IndexType IndexType;
 
  protected:
   // for convenience, reference base class members directly (they are otherwise
@@ -104,7 +106,7 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
    */
   // TODO (True): normalizedCoords
   CudaTexture2D(
-      const size_t width, const size_t height,
+      SizeType width, SizeType height,
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
@@ -196,7 +198,7 @@ struct CudaArrayTraits<CudaTexture2D<T>> {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaTexture2D<T>::CudaTexture2D<T>(const size_t width, const size_t height,
+CudaTexture2D<T>::CudaTexture2D<T>(SizeType width, SizeType height,
                                    const cudaTextureFilterMode filter_mode,
                                    const cudaTextureAddressMode address_mode,
                                    const cudaTextureReadMode read_mode,
@@ -249,4 +251,4 @@ inline void CudaTexture2D<T>::CopyTo(T *host_array) const {
 
 }  // namespace cua
 
-#endif  // CUDA_TEXTURE2D_H_
+#endif  // LIBCUA_CUDA_TEXTURE2D_H_

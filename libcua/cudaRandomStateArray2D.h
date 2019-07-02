@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_RANDOM_STATE_ARRAY2D_H_
-#define CUDA_RANDOM_STATE_ARRAY2D_H_
+#ifndef LIBCUA_CUDA_RANDOM_STATE_ARRAY2D_H_
+#define LIBCUA_CUDA_RANDOM_STATE_ARRAY2D_H_
 
 #include "cudaArray2D.h"
 
@@ -60,9 +60,12 @@ __global__ void CudaRandomStateArray2DInit(CudaRandomStateArray2D array,
  */
 class CudaRandomStateArray2D : public CudaArray2D<curandState_t> {
  public:
-  CudaRandomStateArray2D(size_t width, size_t height);
+  typedef typename CudaArray2D<curandState_t>::SizeType SizeType;
+  typedef typename CudaArray2D<curandState_t>::IndexType IndexType;
 
-  CudaRandomStateArray2D(size_t width, size_t height, size_t seed);
+  CudaRandomStateArray2D(SizeType width, SizeType height);
+
+  CudaRandomStateArray2D(SizeType width, SizeType height, size_t seed);
 
  private:
   static inline size_t GetSeed() {
@@ -77,10 +80,10 @@ class CudaRandomStateArray2D : public CudaArray2D<curandState_t> {
 //
 //------------------------------------------------------------------------------
 
-CudaRandomStateArray2D::CudaRandomStateArray2D(size_t width, size_t height)
+CudaRandomStateArray2D::CudaRandomStateArray2D(SizeType width, SizeType height)
     : CudaRandomStateArray2D(width, height, GetSeed()) {}
 
-CudaRandomStateArray2D::CudaRandomStateArray2D(size_t width, size_t height,
+CudaRandomStateArray2D::CudaRandomStateArray2D(SizeType width, SizeType height,
                                                size_t seed)
     : CudaArray2D<curandState_t>::CudaArray2D(width, height) {
   kernel::CudaRandomStateArray2DInit<<<grid_dim_, block_dim_>>>(*this, seed);
@@ -99,8 +102,10 @@ namespace kernel {
 //
 __global__ void CudaRandomStateArray2DInit(CudaRandomStateArray2D array,
                                            size_t seed) {
-  const int x = blockIdx.x * blockDim.x + threadIdx.x;
-  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  const CudaRandomStateArray2D::IndexType x =
+      blockIdx.x * blockDim.x + threadIdx.x;
+  const CudaRandomStateArray2D::IndexType y =
+      blockIdx.y * blockDim.y + threadIdx.y;
 
   // the curand documentation says it should be faster (and probably ok) to use
   // different seeds with sequence number 0
@@ -115,4 +120,4 @@ __global__ void CudaRandomStateArray2DInit(CudaRandomStateArray2D array,
 
 }  // namespace cua
 
-#endif  // CUDA_RANDOM_STATE_ARRAY2D_H_
+#endif  // LIBCUA_CUDA_RANDOM_STATE_ARRAY2D_H_

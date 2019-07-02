@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_ARRAY_FWD_H_
-#define CUDA_ARRAY_FWD_H_
+#ifndef LIBCUA_CUDA_ARRAY_FWD_H_
+#define LIBCUA_CUDA_ARRAY_FWD_H_
 
 /**
  * @namespace cua
@@ -66,4 +66,4 @@ class CudaTexture2D;
 
 }  // namespace cua
 
-#endif  // CUDA_ARRAY_FWD_H_
+#endif  // LIBCUA_CUDA_ARRAY_FWD_H_

@@ -33,11 +33,13 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_ARRAY3D_BASE_H_
-#define CUDA_ARRAY3D_BASE_H_
+#ifndef LIBCUA_CUDA_ARRAY3D_BASE_H_
+#define LIBCUA_CUDA_ARRAY3D_BASE_H_
 
 #include <curand.h>
 #include <curand_kernel.h>
+
+#include "types.h"
 
 namespace cua {
 
@@ -62,9 +64,9 @@ namespace kernel {
 //
 template <typename SrcCls, typename DstCls>
 __global__ void CudaArray3DBaseCopy(const SrcCls src, DstCls dst) {
-  const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
-  const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
-  const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+  const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+  const unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
   if (x < src.Width() && y < src.Height() && z < src.Depth()) {
     dst.set(x, y, z, (typename DstCls::Scalar)src.get(x, y, z));
@@ -77,9 +79,9 @@ __global__ void CudaArray3DBaseCopy(const SrcCls src, DstCls dst) {
 //
 template <typename CudaArrayClass, class Function>
 __global__ void CudaArray3DBaseApplyOp(CudaArrayClass array, Function op) {
-  const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
-  const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
-  const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+  const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+  const unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
   if (x < array.Width() && y < array.Height() && z < array.Depth()) {
     array.set(x, y, z, op(x, y, z));
@@ -93,9 +95,9 @@ __global__ void CudaArray3DBaseApplyOp(CudaArrayClass array, Function op) {
 //
 template <typename CudaArrayClass, typename T>
 __global__ void CudaArray3DBaseFill(CudaArrayClass array, const T value) {
-  const size_t x = blockIdx.x * blockDim.x + threadIdx.x;
-  const size_t y = blockIdx.y * blockDim.y + threadIdx.y;
-  const size_t z = blockIdx.z * blockDim.z + threadIdx.z;
+  const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+  const unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
   if (x < array.Width() && y < array.Height() && z < array.Depth()) {
     array.set(x, y, z, value);
@@ -112,23 +114,24 @@ template <typename CudaRandomStateArrayClass, typename CudaArrayClass,
 __global__ void CudaArray3DBaseFillRandom(CudaRandomStateArrayClass rand_state,
                                           CudaArrayClass array,
                                           RandomFunction func) {
-  const size_t x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
-  const size_t y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
-  const size_t z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;
+  const unsigned int x = blockIdx.x * CudaArrayClass::TILE_SIZE + threadIdx.x;
+  const unsigned int y = blockIdx.y * CudaArrayClass::TILE_SIZE + threadIdx.y;
+  const unsigned int z = blockIdx.z * CudaArrayClass::TILE_SIZE + threadIdx.z;
 
   // Each thread processes BLOCK_ROWS contiguous rows in y, and then repeats
   // this for BLOCK_ROWS contiguous depth rows in z.
 
   curandState_t state = rand_state.get(blockIdx.x, blockIdx.y, blockIdx.z);
-  skipahead(((threadIdx.z * CudaArrayClass::BLOCK_ROWS + threadIdx.y) *
-                 CudaArrayClass::TILE_SIZE +
-             threadIdx.x) *
-                CudaArrayClass::BLOCK_ROWS * CudaArrayClass::BLOCK_ROWS,
+  skipahead(static_cast<unsigned long long>(
+                ((threadIdx.z * CudaArrayClass::BLOCK_ROWS + threadIdx.y) *
+                     CudaArrayClass::TILE_SIZE +
+                 threadIdx.x) *
+                CudaArrayClass::BLOCK_ROWS * CudaArrayClass::BLOCK_ROWS),
             &state);
 
-  for (size_t k = 0; k < CudaArrayClass::TILE_SIZE;
+  for (unsigned int k = 0; k < CudaArrayClass::TILE_SIZE;
        k += CudaArrayClass::BLOCK_ROWS) {
-    for (size_t j = 0; j < CudaArrayClass::TILE_SIZE;
+    for (unsigned int j = 0; j < CudaArrayClass::TILE_SIZE;
          j += CudaArrayClass::BLOCK_ROWS) {
       const auto value = func(&state);
       if (x < array.Width() && y + j < array.Height() &&
@@ -171,7 +174,8 @@ struct CudaArrayTraits;  // forward declaration
  *   - `__host__ __device__ Derived(const Derived &other);`
  * - get(): read from array position
  *   - `__device__
- *   inline Scalar get(const size_t x, const size_t y, const size_t z) const;`
+ *   inline Scalar get(const unsigned int x, const unsigned int y, const
+ *                     unsigned int z) const;`
  *
  * These methods are suggested for getting data to/from the CPU:
  *
@@ -185,8 +189,8 @@ struct CudaArrayTraits;  // forward declaration
  * - EmptyCopy(): to create a new array of the same size
  *   - `Derived EmptyCopy() const;`
  * - set(): write to array position (optional for readonly subclasses)
- *   - `__device__ inline void set(const size_t x, const size_t y,
- *                                 const size_t z, Scalar value);`
+ *   - `__device__ inline void set(unsigned int x, unsigned int y,
+ *                                 unsigned int z, Scalar value);`
  *
  * Also, any derived class will need to separately declare a CudaArrayTraits
  * struct instantiation with a "Scalar" member, e.g.,
@@ -206,14 +210,20 @@ class CudaArray3DBase {
   /// datatype of the array
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
+  /// size type of the array
+  typedef LIBCUA_DEFAULT_SIZE_TYPE SizeType;
+
+  /// index type of the array
+  typedef LIBCUA_DEFAULT_INDEX_TYPE IndexType;
+
   /// default block dimensions for general operations
   static const dim3 BLOCK_DIM;
 
   /// operate on blocks of this width for, e.g., FillRandom
-  static const size_t TILE_SIZE;
+  static const SizeType TILE_SIZE;
 
   /// number of rows to iterate over per thread for, e.g., FillRandom
-  static const size_t BLOCK_ROWS;
+  static const SizeType BLOCK_ROWS;
 
   //----------------------------------------------------------------------------
   // constructors and derived()
@@ -227,7 +237,7 @@ class CudaArray3DBase {
    *   dimension is computed automatically based on the array size
    * @param stream CUDA stream for this array object
    */
-  CudaArray3DBase(const size_t width, const size_t height, const size_t depth,
+  CudaArray3DBase(SizeType width, SizeType height, SizeType depth,
                   const dim3 block_dim = CudaArray3DBase<Derived>::BLOCK_DIM,
                   const cudaStream_t stream = 0);  // default stream
 
@@ -317,10 +327,10 @@ class CudaArray3DBase {
   //----------------------------------------------------------------------------
   // getters/setters
 
-  __host__ __device__ inline size_t Width() const { return width_; }
-  __host__ __device__ inline size_t Height() const { return height_; }
-  __host__ __device__ inline size_t Depth() const { return depth_; }
-  __host__ __device__ inline size_t Size() const {
+  __host__ __device__ inline SizeType Width() const { return width_; }
+  __host__ __device__ inline SizeType Height() const { return height_; }
+  __host__ __device__ inline SizeType Depth() const { return depth_; }
+  __host__ __device__ inline SizeType Size() const {
     return width_ * height_ * depth_;
   }
 
@@ -347,8 +357,8 @@ class CudaArray3DBase {
    *
    *      // Array3DType arr1, arr2
    *      // Array3DType out
-   *      out.applyOp([arr1, arr2] __device__(const size_t x, const size_t y,
-   *                                           const size_t z) {
+   *      out.ApplyOp([arr1, arr2] __device__(unsigned int x, unsigned int y,
+   *                                          unsigned int z) {
    *        return arr1.get(x, y, z) + arr2.get(x, y, z);  // => out(x, y, z)
    *      });
    *
@@ -358,7 +368,7 @@ class CudaArray3DBase {
    */
   template <class Function, class C = CudaArrayTraits<Derived>,
             typename C::Mutable is_mutable = true>
-  void ApplyOp(Function op, const size_t shared_mem_bytes = 0) {
+  void ApplyOp(Function op, const unsigned int shared_mem_bytes = 0) {
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, shared_mem_bytes,
                                      stream_>>>(derived(), op);
   }
@@ -371,7 +381,7 @@ class CudaArray3DBase {
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) + value;
         });
   }
@@ -384,7 +394,7 @@ class CudaArray3DBase {
   inline void operator-=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) - value;
         });
   }
@@ -397,7 +407,7 @@ class CudaArray3DBase {
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) * value;
         });
   }
@@ -410,7 +420,7 @@ class CudaArray3DBase {
   inline void operator/=(const Scalar value) {
     Derived &tmp = derived();
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
-        tmp, [tmp, value] __device__(size_t x, size_t y, size_t z) {
+        tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) / value;
         });
   }
@@ -419,7 +429,7 @@ class CudaArray3DBase {
   // protected class methods and fields
 
  protected:
-  size_t width_, height_, depth_;
+  SizeType width_, height_, depth_;
 
   dim3 block_dim_, grid_dim_;  // for calling kernels
 
@@ -436,10 +446,12 @@ template <typename Derived>
 const dim3 CudaArray3DBase<Derived>::BLOCK_DIM = dim3(32, 8, 4);
 
 template <typename Derived>
-const size_t CudaArray3DBase<Derived>::TILE_SIZE = 32;
+const typename CudaArray3DBase<Derived>::SizeType
+    CudaArray3DBase<Derived>::TILE_SIZE = 32;
 
 template <typename Derived>
-const size_t CudaArray3DBase<Derived>::BLOCK_ROWS = 4;
+const typename CudaArray3DBase<Derived>::SizeType
+    CudaArray3DBase<Derived>::BLOCK_ROWS = 4;
 
 //------------------------------------------------------------------------------
 //
@@ -448,9 +460,9 @@ const size_t CudaArray3DBase<Derived>::BLOCK_ROWS = 4;
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const size_t width,
-                                                   const size_t height,
-                                                   const size_t depth,
+CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const SizeType width,
+                                                   const SizeType height,
+                                                   const SizeType depth,
                                                    const dim3 block_dim,
                                                    const cudaStream_t stream)
     : width_(width), height_(height), depth_(depth), stream_(stream) {
@@ -516,4 +528,4 @@ inline void CudaArray3DBase<Derived>::FillRandom(
 
 }  // namespace cua
 
-#endif  // CUDA_ARRAY3D_BASE_H_
+#endif  // LIBCUA_CUDA_ARRAY3D_BASE_H_

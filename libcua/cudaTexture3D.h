@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_TEXTURE3D_H_
-#define CUDA_TEXTURE3D_H_
+#ifndef LIBCUA_CUDA_TEXTURE3D_H_
+#define LIBCUA_CUDA_TEXTURE3D_H_
 
 #include "cudaArray3DBase.h"
 #include "cudaSharedArrayObject.h"
@@ -77,6 +77,8 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
   typedef typename CudaArrayTraits<Derived>::Scalar Scalar;
 
   typedef CudaArray3DBase<Derived> Base;
+  typedef typename Base::SizeType SizeType;
+  typedef typename Base::IndexType IndexType;
 
  protected:
   // for convenience, reference base class members directly (they are otherwise
@@ -109,7 +111,7 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
    *   extents of the array
    */
   CudaTexture3DBase(
-      const size_t width, const size_t height, const size_t depth,
+      SizeType width, SizeType height, SizeType depth,
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
@@ -166,7 +168,7 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
 
 template <typename Derived>
 CudaTexture3DBase<Derived>::CudaTexture3DBase<Derived>(
-    const size_t width, const size_t height, const size_t depth,
+    SizeType width, SizeType height, SizeType depth,
     const cudaTextureFilterMode filter_mode,
     const cudaTextureAddressMode address_mode,
     const cudaTextureReadMode read_mode, const dim3 block_dim,
@@ -361,4 +363,4 @@ struct CudaArrayTraits<CudaTexture3D<T>> {
 
 }  // namespace cua
 
-#endif  // CUDA_TEXTURE3D_H_
+#endif  // LIBCUA_CUDA_TEXTURE3D_H_

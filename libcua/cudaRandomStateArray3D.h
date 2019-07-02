@@ -33,8 +33,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 // ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CUDA_RANDOM_STATE_ARRAY3D_H_
-#define CUDA_RANDOM_STATE_ARRAY3D_H_
+#ifndef LIBCUA_CUDA_RANDOM_STATE_ARRAY3D_H_
+#define LIBCUA_CUDA_RANDOM_STATE_ARRAY3D_H_
 
 #include "cudaArray3D.h"
 
@@ -60,9 +60,12 @@ __global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
  */
 class CudaRandomStateArray3D : public CudaArray3D<curandState_t> {
  public:
-  CudaRandomStateArray3D(size_t width, size_t height, size_t depth);
+  typedef typename CudaArray3D<curandState_t>::SizeType SizeType;
+  typedef typename CudaArray3D<curandState_t>::IndexType IndexType;
 
-  CudaRandomStateArray3D(size_t width, size_t height, size_t depth,
+  CudaRandomStateArray3D(SizeType width, SizeType height, SizeType depth);
+
+  CudaRandomStateArray3D(SizeType width, SizeType height, SizeType depth,
                          size_t seed);
 
  private:
@@ -78,12 +81,12 @@ class CudaRandomStateArray3D : public CudaArray3D<curandState_t> {
 //
 //------------------------------------------------------------------------------
 
-CudaRandomStateArray3D::CudaRandomStateArray3D(size_t width, size_t height,
-                                               size_t depth)
+CudaRandomStateArray3D::CudaRandomStateArray3D(SizeType width, SizeType height,
+                                               SizeType depth)
     : CudaRandomStateArray3D(width, height, depth, GetSeed()) {}
 
-CudaRandomStateArray3D::CudaRandomStateArray3D(size_t width, size_t height,
-                                               size_t depth, size_t seed)
+CudaRandomStateArray3D::CudaRandomStateArray3D(SizeType width, SizeType height,
+                                               SizeType depth, size_t seed)
     : CudaArray3D<curandState_t>::CudaArray3D(width, height, depth) {
   kernel::CudaRandomStateArray3DInit<<<grid_dim_, block_dim_>>>(*this, seed);
 }
@@ -101,9 +104,12 @@ namespace kernel {
 //
 __global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
                                            size_t seed) {
-  const int x = blockIdx.x * blockDim.x + threadIdx.x;
-  const int y = blockIdx.y * blockDim.y + threadIdx.y;
-  const int z = blockIdx.z * blockDim.z + threadIdx.z;
+  const CudaRandomStateArray3D::IndexType x =
+      blockIdx.x * blockDim.x + threadIdx.x;
+  const CudaRandomStateArray3D::IndexType y =
+      blockIdx.y * blockDim.y + threadIdx.y;
+  const CudaRandomStateArray3D::IndexType z =
+      blockIdx.z * blockDim.z + threadIdx.z;
 
   // the curand documentation says it should be faster (and probably ok) to use
   // different seeds with sequence number 0
@@ -119,4 +125,4 @@ __global__ void CudaRandomStateArray3DInit(CudaRandomStateArray3D array,
 
 }  // namespace cua
 
-#endif  // CUDA_RANDOM_STATE_ARRAY3D_H_
+#endif  // LIBCUA_CUDA_RANDOM_STATE_ARRAY3D_H_

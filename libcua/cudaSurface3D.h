@@ -39,8 +39,6 @@
 #include "cudaArray3DBase.h"
 #include "cudaSharedArrayObject.h"
 
-#include <memory>  // for shared_ptr
-
 namespace cua {
 
 /**
@@ -277,7 +275,7 @@ inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
-  params.dstArray = shared_surface_.get_dev_array();
+  params.dstArray = shared_surface_.DeviceArray();
   params.dstPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
   params.extent = make_cudaExtent(width_, height_, depth_);
   params.kind = cudaMemcpyHostToDevice;
@@ -315,7 +313,7 @@ template <typename Derived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
   cudaMemcpy3DParms params = {0};
-  params.srcArray = shared_surface_.get_dev_array();
+  params.srcArray = shared_surface_.DeviceArray();
   params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
   params.dstPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
@@ -353,7 +351,7 @@ class CudaSurface2DArray : public CudaSurface3DBase<CudaSurface2DArray<T>> {
    * @param v the new value to assign to array(x, y, z)
    */
   __device__ inline void set(const int x, const int y, const int z, const T v) {
-    surf2DLayeredwrite(v, this->shared_surface_.get_cuda_api_object(),
+    surf2DLayeredwrite(v, this->shared_surface_.CudaApiObject(),
                        sizeof(T) * (x + this->x_offset_), y + this->y_offset_,
                        z + this->z_offset_, this->boundary_mode_);
   }
@@ -366,7 +364,7 @@ class CudaSurface2DArray : public CudaSurface3DBase<CudaSurface2DArray<T>> {
    * @return the value at array(x, y, z)
    */
   __device__ inline T get(const int x, const int y, const int z) const {
-    return surf2DLayeredread<T>(this->shared_surface_.get_cuda_api_object(),
+    return surf2DLayeredread<T>(this->shared_surface_.CudaApiObject(),
                                 sizeof(T) * (x + this->x_offset_),
                                 y + this->y_offset_, z + this->z_offset_,
                                 this->boundary_mode_);
@@ -397,7 +395,7 @@ class CudaSurface3D : public CudaSurface3DBase<CudaSurface3D<T>> {
    * @param v the new value to assign to array(x, y, z)
    */
   __device__ inline void set(const int x, const int y, const int z, const T v) {
-    surf3Dwrite(v, this->shared_surface_.get_cuda_api_object(),
+    surf3Dwrite(v, this->shared_surface_.CudaApiObject(),
                 sizeof(T) * (x + this->x_offset_), y + this->y_offset_,
                 z + this->z_offset_, this->boundary_mode_);
   }
@@ -410,7 +408,7 @@ class CudaSurface3D : public CudaSurface3DBase<CudaSurface3D<T>> {
    * @return the value at array(x, y, z)
    */
   __device__ inline T get(const int x, const int y, const int z) const {
-    return surf3Dread<T>(this->shared_surface_.get_cuda_api_object(),
+    return surf3Dread<T>(this->shared_surface_.CudaApiObject(),
                          sizeof(T) * (x + this->x_offset_), y + this->y_offset_,
                          z + this->z_offset_, this->boundary_mode_);
   }

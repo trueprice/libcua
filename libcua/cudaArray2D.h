@@ -40,6 +40,8 @@
 
 #include <memory>  // for shared_ptr
 
+#include "cudaArray_fwd.h"
+
 namespace cua {
 
 /**
@@ -140,6 +142,24 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    * @param host_array the CPU-bound array
    */
   void CopyTo(T *host_array) const;
+
+  /**
+   * Copy to an array.
+   * @param other destination array
+   */
+  void CopyTo(CudaArray2D<T> *other) const;
+
+  /**
+   * Copy to a surface.
+   * @param other destination surface
+   */
+  void CopyTo(CudaSurface2D<T> *other) const;
+
+  /**
+   * Copy to a texture.
+   * @param other destination texture
+   */
+  void CopyTo(CudaTexture2D<T> *other) const;
 
   //----------------------------------------------------------------------------
 
@@ -346,6 +366,39 @@ inline void CudaArray2D<T>::CopyTo(T *host_array) const {
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
 }
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+inline void CudaArray2D<T>::CopyTo(CudaArray2D<T> *other) const {
+  // TODO (True): size checking
+  const SizeType width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2D(other->dev_array_ref_, other->pitch_, dev_array_ref_, pitch_,
+               width_in_bytes, height_, cudaMemcpyDeviceToDevice);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+inline void CudaArray2D<T>::CopyTo(CudaSurface2D<T> *other) const {
+  // TODO (True): size checking
+  const SizeType width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2DToArray(other->DeviceArray(), other->XOffset() * sizeof(T),
+                      other->YOffset(), dev_array_ref_, pitch_, width_in_bytes,
+                      height_, cudaMemcpyDeviceToDevice);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+inline void CudaArray2D<T>::CopyTo(CudaTexture2D<T> *other) const {
+  // TODO (True): size checking
+  const SizeType width_in_bytes = width_ * sizeof(T);
+  cudaMemcpy2DToArray(other->DeviceArray(), 0, 0, dev_array_ref_, pitch_,
+                      width_in_bytes, height_, cudaMemcpyDeviceToDevice);
+}
+
+//------------------------------------------------------------------------------
 
 }  // namespace cua
 

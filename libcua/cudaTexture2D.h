@@ -39,8 +39,6 @@
 #include "cudaArray2DBase.h"
 #include "cudaSharedArrayObject.h"
 
-#include <memory>  // for shared_ptr
-
 namespace cua {
 
 /**
@@ -160,7 +158,7 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
    */
   template <typename ReturnType = T>
   __device__ inline ReturnType get(const int x, const int y) const {
-    return tex2D<ReturnType>(shared_texture_.get_cuda_api_object(), x + 0.5f,
+    return tex2D<ReturnType>(shared_texture_.CudaApiObject(), x + 0.5f,
                              y + 0.5f);
   }
 
@@ -176,7 +174,14 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
    */
   template <typename ReturnType = T>
   __device__ inline ReturnType interp(const float x, const float y) const {
-    return tex2D<ReturnType>(shared_texture_.get_cuda_api_object(), x, y);
+    return tex2D<ReturnType>(shared_texture_.CudaApiObject(), x, y);
+  }
+
+  /**
+   * @return the underlying cudaArray object for this texture
+   */
+  inline cudaArray *DeviceArray() const {
+    return shared_texture_.DeviceArray();
   }
 
  private:
@@ -235,7 +240,7 @@ inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(
 
 template <typename T>
 inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
-  cudaMemcpyToArray(shared_texture_.get_dev_array(), 0, 0, host_array,
+  cudaMemcpyToArray(shared_texture_.DeviceArray(), 0, 0, host_array,
                     sizeof(T) * width_ * height_, cudaMemcpyHostToDevice);
 
   return *this;
@@ -245,7 +250,7 @@ inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
 
 template <typename T>
 inline void CudaTexture2D<T>::CopyTo(T *host_array) const {
-  cudaMemcpyFromArray(host_array, shared_texture_.get_dev_array(), 0, 0,
+  cudaMemcpyFromArray(host_array, shared_texture_.DeviceArray(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
 }
 

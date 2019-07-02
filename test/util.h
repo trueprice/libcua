@@ -201,4 +201,28 @@ DEFINE_FOR_ALL_TYPES
 #undef DEFINE_FOR_ALL_DIMS
 #undef DEFINE_FOR_ALL_TYPES
 
+//------------------------------------------------------------------------------
+
+template <typename Scalar>
+struct TypeInfo {
+  typedef bool unsupported_for_textures;
+};
+
+#define ADD_SUPPORTED_TEXTURE_TYPE(Scalar) \
+  template <>                              \
+  struct TypeInfo<Scalar> {                \
+    typedef bool supported_for_textures;   \
+  };
+ADD_SUPPORTED_TEXTURE_TYPE(float)
+ADD_SUPPORTED_TEXTURE_TYPE(float2)
+ADD_SUPPORTED_TEXTURE_TYPE(float4)
+ADD_SUPPORTED_TEXTURE_TYPE(uchar)
+ADD_SUPPORTED_TEXTURE_TYPE(uchar2)
+ADD_SUPPORTED_TEXTURE_TYPE(uchar4)
+ADD_SUPPORTED_TEXTURE_TYPE(uint)
+ADD_SUPPORTED_TEXTURE_TYPE(uint2)
+ADD_SUPPORTED_TEXTURE_TYPE(uint4)
+
+#undef ADD_SUPPORTED_TEXTURE_TYPE
+
 #endif  // TEST_UTIL_H_

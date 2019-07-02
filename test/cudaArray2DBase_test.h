@@ -38,6 +38,9 @@
 
 #include <vector>
 
+#include "cudaArray2D.h"
+#include "cudaSurface2D.h"
+#include "cudaTexture2D.h"
 #include "util.h"
 
 //------------------------------------------------------------------------------
@@ -48,26 +51,28 @@ class CudaArray2DBaseTest
       public PrimitiveConverter<typename CudaArrayType::Scalar> {
  public:
   typedef typename CudaArrayType::Scalar Scalar;
+  typedef typename CudaArrayType::SizeType SizeType;
+  typedef typename CudaArrayType::IndexType IndexType;
   using PrimitiveConverter<Scalar>::AsScalar;
 
   //----------------------------------------------------------------------------
 
-  CudaArray2DBaseTest(size_t width = 10, size_t height = 10)
+  CudaArray2DBaseTest(SizeType width = 10, SizeType height = 10)
       : array_(width, height) {}
 
   //----------------------------------------------------------------------------
 
-  template <typename HostFunction>
-  static void DownloadAndCheck(const CudaArrayType& array,
+  template <typename SourceCudaArrayType, typename HostFunction>
+  static void DownloadAndCheck(const SourceCudaArrayType& array,
                                const HostFunction& host_function) {
     CUDA_CHECK_ERROR
     std::vector<Scalar> result(array.Size());
     array.CopyTo(result.data());
     CUDA_CHECK_ERROR
 
-    for (size_t y = 0; y < array.Height(); ++y) {
-      for (size_t x = 0; x < array.Width(); ++x) {
-        const size_t i = y * array.Width() + x;
+    for (IndexType y = 0; y < array.Height(); ++y) {
+      for (IndexType x = 0; x < array.Width(); ++x) {
+        const IndexType i = y * array.Width() + x;
         EXPECT_EQ(result[i], host_function(x, y)) << "Coordinate: " << x << " "
                                                   << y;
       }
@@ -83,12 +88,13 @@ class CudaArray2DBaseTest
 
   void CheckUpload() {
     std::vector<Scalar> data(array_.Size());
-    for (size_t i = 0; i < array_.Size(); ++i) {
+    for (IndexType i = 0; i < array_.Size(); ++i) {
       data[i] = AsScalar(i);
     }
     array_ = data.data();
-    DownloadAndCheck(
-        [=](size_t x, size_t y) { return AsScalar(y * array_.Width() + x); });
+    DownloadAndCheck([=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
   }
 
   //----------------------------------------------------------------------------
@@ -99,14 +105,14 @@ class CudaArray2DBaseTest
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
 
-    for (size_t col = 0; col < array_.Width(); ++col) {
+    for (IndexType col = 0; col < array_.Width(); ++col) {
       auto view = array_.View(col, 1, 1, array_.Height() - 1);
       view.Fill(AsScalar(col));
       CUDA_CHECK_ERROR
     }
 
     DownloadAndCheck(
-        [](size_t x, size_t y) { return AsScalar((y > 0) ? x : 0); });
+        [](IndexType x, IndexType y) { return AsScalar((y > 0) ? x : 0); });
   }
 
   //----------------------------------------------------------------------------
@@ -120,10 +126,12 @@ class CudaArray2DBaseTest
     CUDA_CHECK_ERROR
 
     auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
-    view.ApplyOp([] __device__(size_t x, size_t y) { return AsScalar(x + y); });
+    view.ApplyOp(
+        [] __device__(IndexType x, IndexType y) { return AsScalar(x + y); });
 
-    DownloadAndCheck(view, [](size_t x, size_t y) { return AsScalar(x + y); });
-    DownloadAndCheck([=](size_t x, size_t y) {
+    DownloadAndCheck(view,
+                     [](IndexType x, IndexType y) { return AsScalar(x + y); });
+    DownloadAndCheck([=](IndexType x, IndexType y) {
       return (x > 0 && x < array_.Width() - 1 && y > 0 &&
               y < array_.Height() - 1)
                  ? AsScalar(x - 1 + y - 1)
@@ -144,11 +152,11 @@ class CudaArray2DBaseTest
     auto view = array_.View(1, 1, array_.Width() - 2, array_.Height() - 2);
 
     std::vector<Scalar> data(view.Size());
-    for (size_t i = 0; i < view.Size(); ++i) {
+    for (IndexType i = 0; i < view.Size(); ++i) {
       data[i] = AsScalar(i);
     }
     view = data.data();
-    DownloadAndCheck(view, [=](size_t x, size_t y) {
+    DownloadAndCheck(view, [=](IndexType x, IndexType y) {
       return AsScalar(y * view.Width() + x);
     });
   }
@@ -171,7 +179,7 @@ class CudaArray2DBaseTest
     auto view2 = view1.View(1, 1, view1.Width() - 2, view1.Height() - 2);
     view2.Fill(kFillValue2);
 
-    DownloadAndCheck([=](size_t x, size_t y) {
+    DownloadAndCheck([=](IndexType x, IndexType y) {
       if (x > 1 && x < array_.Width() - 2 && y > 1 && y < array_.Height() - 2) {
         return kFillValue2;
       } else if (x > 0 && x < array_.Width() - 1 && y > 0 &&
@@ -187,7 +195,7 @@ class CudaArray2DBaseTest
 
   void CheckFill(Scalar value) {
     array_.Fill(value);
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -196,9 +204,9 @@ class CudaArray2DBaseTest
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
     array_ += value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
     array_ += value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
@@ -207,9 +215,9 @@ class CudaArray2DBaseTest
     array_.Fill(value + value);
     CUDA_CHECK_ERROR
     array_ -= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
     array_ -= value;
-    DownloadAndCheck([](size_t x, size_t y) { return AsScalar(0); });
+    DownloadAndCheck([](IndexType x, IndexType y) { return AsScalar(0); });
   }
 
   //----------------------------------------------------------------------------
@@ -218,9 +226,9 @@ class CudaArray2DBaseTest
     array_.Fill(AsScalar(1));
     CUDA_CHECK_ERROR
     array_ *= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
     array_ *= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value * value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value * value; });
   }
 
   //----------------------------------------------------------------------------
@@ -229,16 +237,16 @@ class CudaArray2DBaseTest
     array_.Fill(value * value);
     CUDA_CHECK_ERROR
     array_ /= value;
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
     array_ /= value;
-    DownloadAndCheck([](size_t x, size_t y) { return AsScalar(1); });
+    DownloadAndCheck([](IndexType x, IndexType y) { return AsScalar(1); });
   }
 
   //----------------------------------------------------------------------------
 
   void CheckApplyOpConstant(Scalar value) {
-    array_.ApplyOp([=] __device__(size_t x, size_t y) { return value; });
-    DownloadAndCheck([=](size_t x, size_t y) { return value; });
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) { return value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -246,11 +254,13 @@ class CudaArray2DBaseTest
   void CheckApplyOpLinear() {
     // Unfortunately, we can't use *this capture within the testing framework,
     // so we'll avoid accessing array_ in the lambda.
-    const size_t width = array_.Width();
-    array_.ApplyOp(
-        [=] __device__(size_t x, size_t y) { return AsScalar(y * width + x); });
-    DownloadAndCheck(
-        [=](size_t x, size_t y) { return AsScalar(y * array_.Width() + x); });
+    const SizeType width = array_.Width();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
+      return AsScalar(y * width + x);
+    });
+    DownloadAndCheck([=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
   }
 
   //----------------------------------------------------------------------------
@@ -262,11 +272,71 @@ class CudaArray2DBaseTest
     // Unfortunately, we can't use *this capture within the testing framework,
     // so we'll avoid accessing array_ in the lambda.
     CudaArrayType local_array(array_);  // shallow copy for lambda capture
-    array_.ApplyOp([=] __device__(size_t x, size_t y) {
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
       return value + local_array.get(x, y);
     });
-    DownloadAndCheck([=](size_t x, size_t y) { return value + value; });
+    DownloadAndCheck([=](IndexType x, IndexType y) { return value + value; });
   }
+
+  //----------------------------------------------------------------------------
+
+  void CheckCopyToArray() {
+    const SizeType width = array_.Width();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
+      return AsScalar(y * width + x);
+    });
+
+    cua::CudaArray2D<Scalar> other(array_.Width(), array_.Height());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
+  }
+
+  //----------------------------------------------------------------------------
+
+  template <typename C = TypeInfo<Scalar>,
+            typename C::supported_for_textures enabled = true>
+  void CheckCopyToSurface() {
+    const SizeType width = array_.Width();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
+      return AsScalar(y * width + x);
+    });
+
+    cua::CudaSurface2D<Scalar> other(array_.Width(), array_.Height());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
+  }
+
+  template <typename C = TypeInfo<Scalar>,
+            typename C::unsupported_for_textures enabled = false>
+  void CheckCopyToSurface() {}
+
+  //----------------------------------------------------------------------------
+
+  template <typename C = TypeInfo<Scalar>,
+            typename C::supported_for_textures enabled = true>
+  void CheckCopyToTexture() {
+    const SizeType width = array_.Width();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
+      return AsScalar(y * width + x);
+    });
+
+    cua::CudaTexture2D<Scalar> other(array_.Width(), array_.Height());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
+  }
+
+  template <typename C = TypeInfo<Scalar>,
+            typename C::unsupported_for_textures enabled = false>
+  void CheckCopyToTexture() {}
 
   //----------------------------------------------------------------------------
 
@@ -328,11 +398,24 @@ TYPED_TEST_P(CudaArray2DBaseTest, TestApplyOpUpdate) {
   this->CheckApplyOpUpdate(this->AsScalar(3));
 }
 
+TYPED_TEST_P(CudaArray2DBaseTest, TestCopyToArray) {
+  this->CheckCopyToArray();
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestCopyToSurface) {
+  this->CheckCopyToSurface();
+}
+
+TYPED_TEST_P(CudaArray2DBaseTest, TestCopyToTexture) {
+  this->CheckCopyToTexture();
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CudaArray2DBaseTest, TestUpload, TestView,
                             TestViewDownload, TestViewUpload, TestNestedViews,
                             TestFill, TestInPlaceAdd, TestInPlaceSubtract,
                             TestInPlaceMultiply, TestInPlaceDivide,
                             TestApplyOpConstant, TestApplyOpLinear,
-                            TestApplyOpUpdate);
+                            TestApplyOpUpdate, TestCopyToArray,
+                            TestCopyToSurface, TestCopyToTexture);
 
 #endif  // CUDA_ARRAY2D_BASE_TEST_H_

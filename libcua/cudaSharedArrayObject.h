@@ -91,11 +91,11 @@ class CudaSharedArrayObject {
 
   //------------------------------------------------------------------------------
 
-  inline cudaArray *get_dev_array() const { return dev_array; }
+  inline cudaArray *DeviceArray() const { return dev_array; }
 
   //------------------------------------------------------------------------------
 
-  __device__ inline const CUDA_API_ObjType &get_cuda_api_object() const {
+  __device__ inline const CUDA_API_ObjType &CudaApiObject() const {
     return cuda_api_obj;
   }
 

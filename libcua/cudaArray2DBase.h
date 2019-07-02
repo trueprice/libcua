@@ -78,6 +78,7 @@ struct CudaArrayTraits;  // forward declaration
  *   - `Derived &operator=(const Scalar *host_array);`
  * -  CopyTo(): suggested to have this for getting data to the CPU
  *    - `void CopyTo(Scalar *host_array) const;`
+ *    - `void CopyTo(Derived *other) const;`
  *
  * These methods are necessary for derived classes that are read-write:
  *
@@ -179,11 +180,10 @@ class CudaArray2DBase {
   /**
    * @return a new copy of the current array.
    */
-  // TODO (True): specialize in subclasses when type is not mutable?
   ENABLE_IF_MUTABLE
   inline Derived Copy() const {
     Derived result = derived().EmptyCopy();
-    Copy(result);
+    CopyTo(&result);
     return result;
   }
 
@@ -256,9 +256,9 @@ class CudaArray2DBase {
    * @ param other output array
    * @return other
    */
-  template <typename OtherDerived,
-            typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
-  OtherDerived &Copy(OtherDerived &other) const;
+  //template <typename OtherDerived,
+  //          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
+  //OtherDerived &Copy(OtherDerived &other) const;
 
   /**
    * Flip the current array left-right and store in another array.
@@ -524,20 +524,20 @@ inline CudaArray2DBase<Derived> &CudaArray2DBase<Derived>::operator=(
 
 //------------------------------------------------------------------------------
 
-template <typename Derived>
-template <typename OtherDerived,
-          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-inline OtherDerived &CudaArray2DBase<Derived>::Copy(OtherDerived &other) const {
-  if (this != &other) {
-    if (width_ != other.width_ || height_ != other.height_) {
-      other = derived().EmptyCopy();
-    }
-
-    kernel::CudaArray2DBaseCopy<<<grid_dim_, block_dim_>>>(derived(), other);
-  }
-
-  return other;
-}
+//template <typename Derived>
+//template <typename OtherDerived,
+//          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
+//inline OtherDerived &CudaArray2DBase<Derived>::Copy(OtherDerived &other) const {
+//  if (this != &other) {
+//    if (width_ != other.width_ || height_ != other.height_) {
+//      other = derived().EmptyCopy();
+//    }
+//
+//    kernel::CudaArray2DBaseCopy<<<grid_dim_, block_dim_>>>(derived(), other);
+//  }
+//
+//  return other;
+//}
 
 //------------------------------------------------------------------------------
 

@@ -39,8 +39,6 @@
 #include "cudaArray3DBase.h"
 #include "cudaSharedArrayObject.h"
 
-#include <memory>  // for shared_ptr
-
 namespace cua {
 
 /**
@@ -209,7 +207,7 @@ inline CudaTexture3DBase<Derived> &CudaTexture3DBase<Derived>::operator=(
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
-  params.dstArray = shared_texture_.get_dev_array();
+  params.dstArray = shared_texture_.DeviceArray();
   params.extent = make_cudaExtent(width_, height_, depth_);
   params.kind = cudaMemcpyHostToDevice;
 
@@ -224,7 +222,7 @@ template <typename Derived>
 inline void CudaTexture3DBase<Derived>::CopyTo(
     CudaTexture3DBase<Derived>::Scalar *host_array) const {
   cudaMemcpy3DParms params = {0};
-  params.srcArray = shared_texture_.get_dev_array();
+  params.srcArray = shared_texture_.DeviceArray();
   params.dstPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
   params.extent = make_cudaExtent(width_, height_, depth_);
@@ -265,7 +263,7 @@ class CudaTexture2DArray : public CudaTexture3DBase<CudaTexture2DArray<T>> {
   template <typename ReturnType = T>
   __device__ inline ReturnType get(const int x, const int y,
                                    const int z) const {
-    return tex2DLayered<ReturnType>(this->shared_texture_.get_cuda_api_object(),
+    return tex2DLayered<ReturnType>(this->shared_texture_.CudaApiObject(),
                                     x + 0.5f, y + 0.5f, z + 0.5f);
   }
 
@@ -285,8 +283,8 @@ class CudaTexture2DArray : public CudaTexture3DBase<CudaTexture2DArray<T>> {
   template <typename ReturnType = T>
   __device__ inline ReturnType interp(const float x, const float y,
                                       const float z) const {
-    return tex2DLayered<ReturnType>(this->shared_texture.get_cuda_api_object(),
-                                    x, y, z);
+    return tex2DLayered<ReturnType>(this->shared_texture.CudaApiObject(), x, y,
+                                    z);
   }
 };
 
@@ -318,8 +316,8 @@ class CudaTexture3D : public CudaTexture3DBase<CudaTexture3D<T>> {
   template <typename ReturnType = T>
   __device__ inline ReturnType get(const int x, const int y,
                                    const int z) const {
-    return tex3D<ReturnType>(this->shared_texture_.get_cuda_api_object(),
-                             x + 0.5f, y + 0.5f, z + 0.5f);
+    return tex3D<ReturnType>(this->shared_texture_.CudaApiObject(), x + 0.5f,
+                             y + 0.5f, z + 0.5f);
   }
 
   /**
@@ -338,8 +336,7 @@ class CudaTexture3D : public CudaTexture3DBase<CudaTexture3D<T>> {
   template <typename ReturnType = T>
   __device__ inline ReturnType interp(const float x, const float y,
                                       const float z) const {
-    return tex3D<ReturnType>(this->shared_texture_.get_cuda_api_object(), x, y,
-                             z);
+    return tex3D<ReturnType>(this->shared_texture_.CudaApiObject(), x, y, z);
   }
 };
 

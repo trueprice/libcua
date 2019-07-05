@@ -38,6 +38,7 @@
 
 #include "cudaArray2DBase.h"
 #include "cudaSharedArrayObject.h"
+#include "util.h"
 
 namespace cua {
 
@@ -240,6 +241,7 @@ inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(
 
 template <typename T>
 inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
+  internal::CheckNotNull(host_array);
   cudaMemcpyToArray(shared_texture_.DeviceArray(), 0, 0, host_array,
                     sizeof(T) * width_ * height_, cudaMemcpyHostToDevice);
 
@@ -250,6 +252,7 @@ inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
 
 template <typename T>
 inline void CudaTexture2D<T>::CopyTo(T *host_array) const {
+  internal::CheckNotNull(host_array);
   cudaMemcpyFromArray(host_array, shared_texture_.DeviceArray(), 0, 0,
                       sizeof(T) * width_ * height_, cudaMemcpyDeviceToHost);
 }

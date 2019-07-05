@@ -41,6 +41,7 @@
 #include <memory>  // for shared_ptr
 
 #include "cudaArray_fwd.h"
+#include "util.h"
 
 namespace cua {
 
@@ -351,6 +352,7 @@ inline CudaArray2D<T> &CudaArray2D<T>::operator=(const CudaArray2D<T> &other) {
 
 template <typename T>
 inline CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
+  internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(dev_array_ref_, pitch_, host_array, width_in_bytes,
                width_in_bytes, height_, cudaMemcpyHostToDevice);
@@ -362,6 +364,7 @@ inline CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
 
 template <typename T>
 inline void CudaArray2D<T>::CopyTo(T *host_array) const {
+  internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
@@ -371,31 +374,31 @@ inline void CudaArray2D<T>::CopyTo(T *host_array) const {
 
 template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaArray2D<T> *other) const {
-  // TODO (True): size checking
-  const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual2D(*this, *other);
   cudaMemcpy2D(other->dev_array_ref_, other->pitch_, dev_array_ref_, pitch_,
-               width_in_bytes, height_, cudaMemcpyDeviceToDevice);
+               width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaSurface2D<T> *other) const {
-  // TODO (True): size checking
-  const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual2D(*this, *other);
   cudaMemcpy2DToArray(other->DeviceArray(), other->XOffset() * sizeof(T),
-                      other->YOffset(), dev_array_ref_, pitch_, width_in_bytes,
-                      height_, cudaMemcpyDeviceToDevice);
+                      other->YOffset(), dev_array_ref_, pitch_,
+                      width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaTexture2D<T> *other) const {
-  // TODO (True): size checking
-  const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual2D(*this, *other);
   cudaMemcpy2DToArray(other->DeviceArray(), 0, 0, dev_array_ref_, pitch_,
-                      width_in_bytes, height_, cudaMemcpyDeviceToDevice);
+                      width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
 }
 
 //------------------------------------------------------------------------------

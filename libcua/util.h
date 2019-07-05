@@ -62,9 +62,11 @@ inline std::string ArraySizeToString3D(const T &array) {
 
 template <typename T>
 inline void CheckNotNull(const T *value) {
+#ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
   if (value == nullptr) {
     throw std::runtime_error("Value must not be null.");
   }
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -80,22 +82,26 @@ inline void CheckCompatibleTypes(const T1 &array1, const T2 &array2) {
 template <typename T1, typename T2>
 inline void CheckSizeEqual2D(const T1 &array1, const T2 &array2) {
   CheckCompatibleTypes(array1, array2);
+#ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
   if (array1.Width() != array2.Width() || array1.Height() != array2.Height()) {
     throw std::runtime_error("Arrays have different sizes (" +
                              ArraySizeToString2D(array1) + " vs " +
                              ArraySizeToString2D(array2) + ").");
   }
+#endif
 }
 
 template <typename T1, typename T2>
 inline void CheckSizeEqual3D(const T1 &array1, const T2 &array2) {
   CheckCompatibleTypes(array1, array2);
+#ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
   if (array1.Width() != array2.Width() || array1.Height() != array2.Height() ||
       array1.Depth() == array2.Depth()) {
     throw std::runtime_error("Arrays have different sizes (" +
                              ArraySizeToString3D(array1) + " vs " +
                              ArraySizeToString3D(array2) + ").");
   }
+#endif
 }
 
 //------------------------------------------------------------------------------

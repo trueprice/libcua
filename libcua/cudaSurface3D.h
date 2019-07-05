@@ -39,6 +39,9 @@
 #include "cudaArray3DBase.h"
 #include "cudaSharedArrayObject.h"
 
+#include "cudaArray_fwd.h"
+#include "util.h"
+
 namespace cua {
 
 /**
@@ -49,7 +52,7 @@ namespace cua {
  * These arrays are read-able and write-able, and compared to linear-memory
  * array they have better cache coherence properties for memory accesses in a 3D
  * neighborhood. Copy/assignment for CudaSurface3D objects is a shallow
- * operation; use Copy(other) to perform a deep copy.
+ * operation; use `Copy()` or `CopyTo(other)` to perform a deep copy.
  *
  * Derived classes implement array access for both layered 2D (that is, an array
  * of 2D arrays) and 3D surface-memory arrays.
@@ -61,7 +64,7 @@ namespace cua {
  *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
  *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
  *       const int z = blockIdx.z * blockDim.z + threadIdx.z;
- *       arr.set(x, y, z, 0.0);
+ *       arr.set(x, y, z, 0.0f);
  *     }
  */
 template <typename Derived>
@@ -168,6 +171,26 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    */
   void CopyTo(Scalar *host_array) const;
 
+  /**
+   * Copy to an array.
+   * @param other destination array
+   */
+  void CopyTo(CudaArray3D<Scalar> *other) const;
+
+  /**
+   * Copy to a surface.
+   * @param other destination surface
+   */
+  template <typename OtherDerived>
+  void CopyTo(CudaSurface3DBase<OtherDerived> *other) const;
+
+  /**
+   * Copy to a texture.
+   * @param other destination texture
+   */
+  template <typename OtherDerived>
+  void CopyTo(CudaTexture3DBase<OtherDerived> *other) const;
+
   //----------------------------------------------------------------------------
   // getters/setters
 
@@ -272,6 +295,8 @@ inline CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy()
 template <typename Derived>
 inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
     const Scalar *host_array) {
+  internal::CheckNotNull(host_array);
+
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
@@ -312,6 +337,8 @@ inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
 template <typename Derived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
+  internal::CheckNotNull(host_array);
+
   cudaMemcpy3DParms params = {0};
   params.srcArray = shared_surface_.DeviceArray();
   params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
@@ -319,6 +346,65 @@ inline void CudaSurface3DBase<Derived>::CopyTo(
                                       width_ * sizeof(Scalar), width_, height_);
   params.extent = make_cudaExtent(width_, height_, depth_);
   params.kind = cudaMemcpyDeviceToHost;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename Derived>
+inline void CudaSurface3DBase<Derived>::CopyTo(
+    CudaArray3D<Scalar> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcArray = shared_surface_.DeviceArray();
+  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+  params.dstPtr = other->GetPitchedPtr();
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename Derived>
+template <typename OtherDerived>
+inline void CudaSurface3DBase<Derived>::CopyTo(
+    CudaSurface3DBase<OtherDerived> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcArray = shared_surface_.DeviceArray();
+  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+  params.dstArray = other->DeviceArray();
+  params.dstPos =
+      make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename Derived>
+template <typename OtherDerived>
+inline void CudaSurface3DBase<Derived>::CopyTo(
+    CudaTexture3DBase<OtherDerived> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcArray = shared_surface_.DeviceArray();
+  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+  params.dstArray = other->DeviceArray();
+  params.dstPos = make_cudaPos(0, 0, 0);
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
 
   cudaMemcpy3D(&params);
 }

@@ -52,7 +52,7 @@ namespace cua {
  * These arrays are read-able and write-able, and compared to linear-memory
  * arrays, they have better cache coherence properties for memory accesses in a
  * 2D neighborhood. Copy/assignment for CudaSurface2D objects is a shallow
- * operation; use Copy(other) to perform a deep copy.
+ * operation; use `Copy()` or `CopyTo(other)` to perform a deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
  * kernels that have CudaSurface2D objects in their parameter lists:
@@ -60,7 +60,7 @@ namespace cua {
  *     __global__ void device_kernel(CudaSurface2D<float> arr) {
  *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
  *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
- *       arr.set(x, y, 0.0);
+ *       arr.set(x, y, 0.0f);
  *     }
  */
 template <typename T>

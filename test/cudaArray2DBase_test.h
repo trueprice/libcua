@@ -279,64 +279,37 @@ class CudaArray2DBaseTest
   }
 
   //----------------------------------------------------------------------------
+  
+  template <typename OtherType>
+  void CheckCopyTo() {
+    const SizeType width = array_.Width();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
+      return AsScalar(y * width + x);
+    });
+
+    OtherType other(array_.Width(), array_.Height());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
+      return AsScalar(y * array_.Width() + x);
+    });
+  }
 
   void CheckCopyToArray() {
-    const SizeType width = array_.Width();
-    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
-      return AsScalar(y * width + x);
-    });
-
-    cua::CudaArray2D<Scalar> other(array_.Width(), array_.Height());
-    array_.CopyTo(&other);
-
-    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
-      return AsScalar(y * array_.Width() + x);
-    });
+    CheckCopyTo<cua::CudaArray2D<Scalar>>();
   }
 
-  //----------------------------------------------------------------------------
-
-  template <typename C = TypeInfo<Scalar>,
-            typename C::supported_for_textures enabled = true>
   void CheckCopyToSurface() {
-    const SizeType width = array_.Width();
-    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
-      return AsScalar(y * width + x);
-    });
-
-    cua::CudaSurface2D<Scalar> other(array_.Width(), array_.Height());
-    array_.CopyTo(&other);
-
-    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
-      return AsScalar(y * array_.Width() + x);
-    });
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
+      CheckCopyTo<cua::CudaSurface2D<Scalar>>();
+    }
   }
 
-  template <typename C = TypeInfo<Scalar>,
-            typename C::unsupported_for_textures enabled = false>
-  void CheckCopyToSurface() {}
-
-  //----------------------------------------------------------------------------
-
-  template <typename C = TypeInfo<Scalar>,
-            typename C::supported_for_textures enabled = true>
   void CheckCopyToTexture() {
-    const SizeType width = array_.Width();
-    array_.ApplyOp([=] __device__(IndexType x, IndexType y) {
-      return AsScalar(y * width + x);
-    });
-
-    cua::CudaTexture2D<Scalar> other(array_.Width(), array_.Height());
-    array_.CopyTo(&other);
-
-    DownloadAndCheck(other, [=](IndexType x, IndexType y) {
-      return AsScalar(y * array_.Width() + x);
-    });
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
+      CheckCopyTo<cua::CudaTexture2D<Scalar>>();
+    }
   }
-
-  template <typename C = TypeInfo<Scalar>,
-            typename C::unsupported_for_textures enabled = false>
-  void CheckCopyToTexture() {}
 
   //----------------------------------------------------------------------------
 

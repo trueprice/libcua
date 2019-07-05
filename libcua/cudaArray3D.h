@@ -40,6 +40,9 @@
 
 #include <memory>  // for shared_ptr
 
+#include "cudaArray_fwd.h"
+#include "util.h"
+
 namespace cua {
 
 /**
@@ -48,7 +51,8 @@ namespace cua {
  *
  * This class implements a straightforward interface for linear 3D arrays on the
  * GPU. These arrays are read-able and write-able, and copy/assignment for these
- * arrays is a shallow operation. Use Copy(other) to perform a deep copy.
+ * arrays is a shallow operation. Use `Copy()` or `CopyTo(other)` to perform a
+ * deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
  * kernels that have CudaArray3D objects in their parameter lists:
@@ -57,7 +61,7 @@ namespace cua {
  *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
  *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
  *       const int z = blockIdx.z * blockDim.z + threadIdx.z;
- *       arr.set(x, y, z, 0.0);
+ *       arr.set(x, y, z, 0.0f);
  *     }
  */
 template <typename T>
@@ -139,6 +143,26 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    */
   void CopyTo(T *host_array) const;
 
+  /**
+   * Copy to an array.
+   * @param other destination array
+   */
+  void CopyTo(CudaArray3D<T> *other) const;
+
+  /**
+   * Copy to a surface.
+   * @param other destination surface
+   */
+  template <typename OtherDerived>
+  void CopyTo(CudaSurface3DBase<OtherDerived> *other) const;
+
+  /**
+   * Copy to a texture.
+   * @param other destination texture
+   */
+  template <typename OtherDerived>
+  void CopyTo(CudaTexture3DBase<OtherDerived> *other) const;
+
   //----------------------------------------------------------------------------
 
   /**
@@ -209,6 +233,15 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * array).
    */
   __host__ __device__ inline size_t Pitch() const { return pitch_; }
+
+  /**
+   * Return a cudaPitchedPtr representation for the underlying allocated memory.
+   */
+  inline cudaPitchedPtr GetPitchedPtr() const {
+    size_t width_in_bytes = width_ * sizeof(T);
+    return make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes,
+                               y_pitch_);
+  }
 
   //----------------------------------------------------------------------------
   // private class methods and fields
@@ -316,12 +349,13 @@ inline CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
 
 template <typename T>
 inline CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
+  internal::CheckNotNull(host_array);
+
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<T *>(host_array),
                                       width_in_bytes, width_in_bytes, height_);
-  params.dstPtr =
-      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, y_pitch_);
+  params.dstPtr = GetPitchedPtr();
   params.extent = make_cudaExtent(width_in_bytes, height_, depth_);
   params.kind = cudaMemcpyHostToDevice;
 
@@ -353,14 +387,70 @@ inline CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
 
 template <typename T>
 inline void CudaArray3D<T>::CopyTo(T *host_array) const {
+  internal::CheckNotNull(host_array);
+
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
-  params.srcPtr =
-      make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes, y_pitch_);
+  params.srcPtr = GetPitchedPtr();
   params.dstPtr =
       make_cudaPitchedPtr(host_array, width_in_bytes, width_in_bytes, height_);
   params.extent = make_cudaExtent(width_in_bytes, height_, depth_);
   params.kind = cudaMemcpyDeviceToHost;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+inline void CudaArray3D<T>::CopyTo(CudaArray3D<T> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcPtr = GetPitchedPtr();
+  params.dstPtr = other->GetPitchedPtr();
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+template <typename OtherDerived>
+inline void CudaArray3D<T>::CopyTo(
+    CudaSurface3DBase<OtherDerived> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcPtr = GetPitchedPtr();
+  params.dstArray = other->DeviceArray();
+  params.dstPos =
+      make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
+
+  cudaMemcpy3D(&params);
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T>
+template <typename OtherDerived>
+inline void CudaArray3D<T>::CopyTo(
+    CudaTexture3DBase<OtherDerived> *other) const {
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual3D(*this, *other);
+
+  cudaMemcpy3DParms params = {0};
+  params.srcPtr = GetPitchedPtr();
+  params.dstArray = other->DeviceArray();
+  params.dstPos = make_cudaPos(0, 0, 0);
+  params.extent = make_cudaExtent(width_, height_, depth_);
+  params.kind = cudaMemcpyDeviceToDevice;
 
   cudaMemcpy3D(&params);
 }

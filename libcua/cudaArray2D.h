@@ -51,7 +51,8 @@ namespace cua {
  *
  * This class implements a straightforward interface for linear 2D arrays on the
  * GPU. These arrays are read-able and write-able, and copy/assignment for these
- * arrays is a shallow operation. Use Copy(other) to perform a deep copy.
+ * arrays is a shallow operation. Use `Copy()` or `CopyTo(other)` to perform a
+ * deep copy.
  *
  * The arrays can be directly passed into device-level code, i.e., you can write
  * kernels that have CudaArray2D objects in their parameter lists:
@@ -59,7 +60,7 @@ namespace cua {
  *     __global__ void device_kernel(CudaArray2D<float> arr) {
  *       const int x = blockIdx.x * blockDim.x + threadIdx.x;
  *       const int y = blockIdx.y * blockDim.y + threadIdx.y;
- *       arr.set(x, y, 0.0);
+ *       arr.set(x, y, 0.0f);
  *     }
  */
 template <typename T>

@@ -50,6 +50,8 @@ class CudaArray3DBaseTest
       public PrimitiveConverter<typename CudaArrayType::Scalar> {
  public:
   typedef typename CudaArrayType::Scalar Scalar;
+  typedef typename CudaArrayType::SizeType SizeType;
+  typedef typename CudaArrayType::IndexType IndexType;
   using PrimitiveConverter<Scalar>::AsScalar;
 
   //----------------------------------------------------------------------------
@@ -291,6 +293,52 @@ class CudaArray3DBaseTest
     });
     DownloadAndCheck(
         [=](size_t x, size_t y, size_t z) { return value + value; });
+  }
+
+  //----------------------------------------------------------------------------
+
+  template <typename OtherType>
+  void CheckCopyTo() {
+    const SizeType width = array_.Width();
+    const SizeType height = array_.Height();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y, IndexType z) {
+      return AsScalar((z * height + y) * width + x);
+    });
+
+    OtherType other(array_.Width(), array_.Height(), array_.Depth());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y, IndexType z) {
+      return AsScalar((z * array_.Height() + y) * array_.Width() + x);
+    });
+  }
+
+  void CheckCopyToArray() {
+    CheckCopyTo<cua::CudaArray3D<Scalar>>();
+  }
+
+  void CheckCopyToSurface3D() {
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
+      CheckCopyTo<cua::CudaSurface3D<Scalar>>();
+    }
+  }
+
+  void CheckCopyToSurface2DArray() {
+    if (TypeInfo<Scalar>::kSupportedForTextures) {
+      CheckCopyTo<cua::CudaSurface2DArray<Scalar>>();
+    }
+  }
+
+  void CheckCopyToTexture3D() {
+    if (TypeInfo<Scalar>::kSupportedForTextures) {
+      CheckCopyTo<cua::CudaTexture3D<Scalar>>();
+    }
+  }
+
+  void CheckCopyToTexture2DArray() {
+    if (TypeInfo<Scalar>::kSupportedForTextures) {
+      CheckCopyTo<cua::CudaTexture2DArray<Scalar>>();
+    }
   }
 
   //----------------------------------------------------------------------------

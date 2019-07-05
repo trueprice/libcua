@@ -205,13 +205,13 @@ DEFINE_FOR_ALL_TYPES
 
 template <typename Scalar>
 struct TypeInfo {
-  typedef bool unsupported_for_textures;
+  typedef std::false_type supported_for_textures;
 };
 
-#define ADD_SUPPORTED_TEXTURE_TYPE(Scalar) \
-  template <>                              \
-  struct TypeInfo<Scalar> {                \
-    typedef bool supported_for_textures;   \
+#define ADD_SUPPORTED_TEXTURE_TYPE(Scalar)         \
+  template <>                                      \
+  struct TypeInfo<Scalar> {                        \
+    typedef std::true_type supported_for_textures; \
   };
 ADD_SUPPORTED_TEXTURE_TYPE(float)
 ADD_SUPPORTED_TEXTURE_TYPE(float2)

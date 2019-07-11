@@ -54,12 +54,12 @@ namespace kernel {
 // copy values of one surface to another, possibly with different datatypes
 //
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray2DBaseCopy(const SrcCls src, DstCls dst) {
+__global__ void CudaArray2DBaseCopyTo(const SrcCls src, DstCls dst) {
   const typename SrcCls::IndexType x = blockIdx.x * blockDim.x + threadIdx.x;
   const typename SrcCls::IndexType y = blockIdx.y * blockDim.y + threadIdx.y;
 
   if (x < src.Width() && y < src.Height()) {
-    dst.set(x, y, (typename DstCls::Scalar)src.get(x, y));
+    dst.set(x, y, static_cast<typename DstCls::Scalar>(src.get(x, y)));
   }
 }
 
@@ -337,6 +337,8 @@ __global__ void CudaArray2DBaseApplyOp(CudaArrayClass array, Function op) {
     array.set(x, y, op(x, y));
   }
 }
+
+//------------------------------------------------------------------------------
 
 }  // namespace kernel
 

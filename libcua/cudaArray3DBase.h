@@ -63,13 +63,13 @@ namespace kernel {
 // copy values of one surface to another, possibly with different datatypes
 //
 template <typename SrcCls, typename DstCls>
-__global__ void CudaArray3DBaseCopy(const SrcCls src, DstCls dst) {
+__global__ void CudaArray3DBaseCopyTo(const SrcCls src, DstCls dst) {
   const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
   const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
   const unsigned int z = blockIdx.z * blockDim.z + threadIdx.z;
 
   if (x < src.Width() && y < src.Height() && z < src.Depth()) {
-    dst.set(x, y, z, (typename DstCls::Scalar)src.get(x, y, z));
+    dst.set(x, y, z, static_cast<typename DstCls::Scalar>(src.get(x, y, z)));
   }
 }
 
@@ -283,7 +283,6 @@ class CudaArray3DBase {
   /**
    * @return a new copy of the current array.
    */
-  // TODO (True): specialize in subclasses when type is not mutable?
   ENABLE_IF_MUTABLE
   Derived Copy() const {
     Derived result = derived().EmptyCopy();
@@ -301,7 +300,7 @@ class CudaArray3DBase {
    */
   template <typename OtherDerived,
             typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-  OtherDerived &Copy(OtherDerived &other) const;
+  OtherDerived &CopyTo(OtherDerived &other) const;
 
   /**
    * Fill the array with a constant value.
@@ -494,14 +493,15 @@ inline CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
 template <typename Derived>
 template <typename OtherDerived,
           typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-inline OtherDerived &CudaArray3DBase<Derived>::Copy(OtherDerived &other) const {
+inline OtherDerived &CudaArray3DBase<Derived>::CopyTo(
+    OtherDerived &other) const {
   if (this != &other) {
     if (width_ != other.width_ || height_ != other.height_ ||
         depth_ != other.depth_) {
       other = derived().EmptyCopy();
     }
 
-    kernel::CudaArray3DBaseCopy<<<grid_dim_, block_dim_>>>(derived(), other);
+    kernel::CudaArray3DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), other);
   }
 
   return other;
@@ -522,6 +522,8 @@ inline void CudaArray3DBase<Derived>::FillRandom(
   kernel::CudaArray3DBaseFillRandom<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);
 }
+
+//------------------------------------------------------------------------------
 
 #undef ENABLE_IF_MUTABLE
 #undef ENABLE_IF_MUTABLE_IMPL

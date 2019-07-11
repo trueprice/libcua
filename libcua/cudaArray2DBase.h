@@ -256,9 +256,9 @@ class CudaArray2DBase {
    * @ param other output array
    * @return other
    */
-  //template <typename OtherDerived,
-  //          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
-  //OtherDerived &Copy(OtherDerived &other) const;
+  template <typename OtherDerived,
+            typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
+  OtherDerived &CopyTo(OtherDerived &other) const;
 
   /**
    * Flip the current array left-right and store in another array.
@@ -524,20 +524,21 @@ inline CudaArray2DBase<Derived> &CudaArray2DBase<Derived>::operator=(
 
 //------------------------------------------------------------------------------
 
-//template <typename Derived>
-//template <typename OtherDerived,
-//          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-//inline OtherDerived &CudaArray2DBase<Derived>::Copy(OtherDerived &other) const {
-//  if (this != &other) {
-//    if (width_ != other.width_ || height_ != other.height_) {
-//      other = derived().EmptyCopy();
-//    }
-//
-//    kernel::CudaArray2DBaseCopy<<<grid_dim_, block_dim_>>>(derived(), other);
-//  }
-//
-//  return other;
-//}
+template <typename Derived>
+template <typename OtherDerived,
+          typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
+inline OtherDerived &CudaArray2DBase<Derived>::CopyTo(
+    OtherDerived &other) const {
+  if (this != &other) {
+    if (width_ != other.width_ || height_ != other.height_) {
+      other = derived().EmptyCopy();
+    }
+
+    kernel::CudaArray2DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), other);
+  }
+
+  return other;
+}
 
 //------------------------------------------------------------------------------
 
@@ -662,6 +663,8 @@ ENABLE_IF_MUTABLE_IMPL inline Derived &CudaArray2DBase<Derived>::Transpose(
 
   return other;
 }
+
+//------------------------------------------------------------------------------
 
 #undef ENABLE_IF_MUTABLE
 #undef ENABLE_IF_MUTABLE_IMPL

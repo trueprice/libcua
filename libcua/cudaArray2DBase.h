@@ -44,6 +44,7 @@
 #include <curand_kernel.h>
 
 #include "types.h"
+#include "util.h"
 
 namespace cua {
 
@@ -72,11 +73,12 @@ struct CudaArrayTraits;  // forward declaration
  * -  get(): read from array position
  *    - `__device__ inline Scalar get(unsigned int x, unsigned int y) const;`
  *
- * These methods are suggested for getting data to/from the CPU:
+ * These methods are suggested for copying the array or updating it with data
+ * from the CPU:
  *
  * -  operator=(): suggested to have this for getting data from the CPU
- *   - `Derived &operator=(const Scalar *host_array);`
- * -  CopyTo(): suggested to have this for getting data to the CPU
+ *    - `Derived &operator=(const Scalar *host_array);`
+ * -  CopyTo(): suggested to have this for specialized copy operations
  *    - `void CopyTo(Scalar *host_array) const;`
  *    - `void CopyTo(Derived *other) const;`
  *
@@ -254,11 +256,10 @@ class CudaArray2DBase {
   /**
    * Copy the current array to another array.
    * @ param other output array
-   * @return other
    */
   template <typename OtherDerived,
             typename CudaArrayTraits<OtherDerived>::Mutable is_mutable = true>
-  OtherDerived &CopyTo(OtherDerived &other) const;
+  void CopyTo(OtherDerived *other) const;
 
   /**
    * Flip the current array left-right and store in another array.
@@ -527,17 +528,13 @@ inline CudaArray2DBase<Derived> &CudaArray2DBase<Derived>::operator=(
 template <typename Derived>
 template <typename OtherDerived,
           typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-inline OtherDerived &CudaArray2DBase<Derived>::CopyTo(
-    OtherDerived &other) const {
-  if (this != &other) {
-    if (width_ != other.width_ || height_ != other.height_) {
-      other = derived().EmptyCopy();
-    }
-
-    kernel::CudaArray2DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), other);
+inline void CudaArray2DBase<Derived>::CopyTo(OtherDerived *other) const {
+  if (this == other) {
+    return;
   }
-
-  return other;
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual2D(*this, *other);
+  kernel::CudaArray2DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), *other);
 }
 
 //------------------------------------------------------------------------------

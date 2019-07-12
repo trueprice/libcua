@@ -390,6 +390,9 @@ inline void CudaSurface2D<T>::CopyTo(CudaArray2D<T> *other) const {
 
 template <typename T>
 inline void CudaSurface2D<T>::CopyTo(CudaSurface2D<T> *other) const {
+  if (this == other) {
+    return;
+  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
   cudaMemcpy2DArrayToArray(other->DeviceArray(), other->x_offset_ * sizeof(T),

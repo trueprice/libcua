@@ -442,6 +442,9 @@ template <typename T>
 template <typename OtherDerived>
 inline void CudaArray3D<T>::CopyTo(
     CudaTexture3DBase<OtherDerived> *other) const {
+  if (this == other) {
+    return;
+  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
 

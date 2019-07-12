@@ -375,6 +375,9 @@ inline void CudaArray2D<T>::CopyTo(T *host_array) const {
 
 template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaArray2D<T> *other) const {
+  if (this == other) {
+    return;
+  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
   cudaMemcpy2D(other->dev_array_ref_, other->pitch_, dev_array_ref_, pitch_,

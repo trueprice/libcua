@@ -40,6 +40,7 @@
 #include <curand_kernel.h>
 
 #include "types.h"
+#include "util.h"
 
 namespace cua {
 
@@ -177,12 +178,14 @@ struct CudaArrayTraits;  // forward declaration
  *   inline Scalar get(const unsigned int x, const unsigned int y, const
  *                     unsigned int z) const;`
  *
- * These methods are suggested for getting data to/from the CPU:
+ * These methods are suggested for copying the array or updating it with data
+ * from the CPU:
  *
- * - operator=()
- *   - `Derived &operator=(const Scalar *host_array);`
- * - CopyTo()
- *   - `void CopyTo(Scalar *host_array) const;`
+ * -  operator=(): suggested to have this for getting data from the CPU
+ *    - `Derived &operator=(const Scalar *host_array);`
+ * -  CopyTo(): suggested to have this for specialized copy operations
+ *    - `void CopyTo(Scalar *host_array) const;`
+ *    - `void CopyTo(Derived *other) const;`
  *
  * These methods are necessary for derived classes that are read-write:
  *
@@ -296,11 +299,10 @@ class CudaArray3DBase {
   /**
    * Copy the current array to another array.
    * @ param other output array
-   * @return other
    */
   template <typename OtherDerived,
             typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-  OtherDerived &CopyTo(OtherDerived &other) const;
+  void CopyTo(OtherDerived *other) const;
 
   /**
    * Fill the array with a constant value.
@@ -493,18 +495,13 @@ inline CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
 template <typename Derived>
 template <typename OtherDerived,
           typename CudaArrayTraits<OtherDerived>::Mutable is_mutable>
-inline OtherDerived &CudaArray3DBase<Derived>::CopyTo(
-    OtherDerived &other) const {
-  if (this != &other) {
-    if (width_ != other.width_ || height_ != other.height_ ||
-        depth_ != other.depth_) {
-      other = derived().EmptyCopy();
-    }
-
-    kernel::CudaArray3DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), other);
+inline void CudaArray3DBase<Derived>::CopyTo(OtherDerived *other) const {
+  if (this == other) {
+    return;
   }
-
-  return other;
+  internal::CheckNotNull(other);
+  internal::CheckSizeEqual2D(*this, *other);
+  kernel::CudaArray3DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), *other);
 }
 
 //------------------------------------------------------------------------------

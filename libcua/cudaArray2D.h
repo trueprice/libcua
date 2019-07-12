@@ -82,6 +82,7 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
   using Base::height_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -99,6 +100,21 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   CudaArray2D(SizeType width, SizeType height,
               const dim3 block_dim = CudaArray2D<T>::kBlockDim,
+              const cudaStream_t stream = 0)  // default stream
+      : CudaArray2D(width, height, internal::GetDevice(), block_dim, stream) {}
+
+  /**
+   * Constructor.
+   * @param width number of columns in the array, assuming a row-major array
+   * @param height number of rows in the array, assuming a row-major array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   */
+  CudaArray2D(SizeType width, SizeType height, int device,
+              const dim3 block_dim = CudaArray2D<T>::kBlockDim,
               const cudaStream_t stream = 0);  // default stream
 
   /**
@@ -114,8 +130,9 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
 
   /**
    * Create an empty array of the same size as the current array.
+   * @param device GPU on which this array is stored, or -1 for the current GPU
    */
-  CudaArray2D<T> EmptyCopy() const;
+  CudaArray2D<T> EmptyCopy(int device = -1) const;
 
   /**
    * Create a new empty array with transposed dimensions (flipped height/width).
@@ -225,6 +242,14 @@ class CudaArray2D : public CudaArray2DBase<CudaArray2D<T>> {
    */
   __host__ __device__ inline size_t Pitch() const { return pitch_; }
 
+  /**
+   * Return a cudaPitchedPtr representation for the underlying allocated memory.
+   */
+  inline cudaPitchedPtr GetPitchedPtr() const {
+    return make_cudaPitchedPtr(dev_array_ref_, pitch_, width_ * sizeof(T),
+                               height_);
+  }
+
   //----------------------------------------------------------------------------
   // private class methods and fields
 
@@ -261,9 +286,10 @@ struct CudaArrayTraits<CudaArray2D<T>> {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray2D<T>::CudaArray2D<T>(SizeType width, SizeType height,
+CudaArray2D<T>::CudaArray2D<T>(SizeType width, SizeType height, int device,
                                const dim3 block_dim, const cudaStream_t stream)
-    : Base(width, height, block_dim, stream), dev_array_(nullptr) {
+    : Base(width, height, device, block_dim, stream), dev_array_(nullptr) {
+  internal::SetDevice(device_);
   cudaMallocPitch(&dev_array_ref_, &pitch_, sizeof(T) * width_, height_);
 #ifdef __CUDA_ARCH__
 #else
@@ -292,7 +318,7 @@ __host__ __device__ CudaArray2D<T>::CudaArray2D<T>(const CudaArray2D<T> &other)
 template <typename T>
 CudaArray2D<T>::CudaArray2D<T>(IndexType x, IndexType y, SizeType width,
                                SizeType height, const CudaArray2D<T> &other)
-    : Base(width, height, other.block_dim_, other.stream_),
+    : Base(width, height, other.device_, other.block_dim_, other.stream_),
       pitch_(other.pitch_),
 #ifdef __CUDA_ARCH__
       dev_array_(nullptr),
@@ -317,16 +343,19 @@ CudaArray2D<T>::~CudaArray2D<T>() {
 //------------------------------------------------------------------------------
 
 template <typename T>
-inline CudaArray2D<T> CudaArray2D<T>::EmptyCopy() const {
-  return CudaArray2D<T>(width_, height_, block_dim_, stream_);
+inline CudaArray2D<T> CudaArray2D<T>::EmptyCopy(int device) const {
+  if (device == -1) {
+    device = device_;
+  }
+  return CudaArray2D<T>(width_, height_, device, block_dim_, stream_);
 }
 
 //------------------------------------------------------------------------------
 
 template <typename T>
 inline CudaArray2D<T> CudaArray2D<T>::EmptyFlippedCopy() const {
-  return CudaArray2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
-                        stream_);
+  return CudaArray2D<T>(height_, width_, device_,
+                        dim3(block_dim_.y, block_dim_.x), stream_);
 }
 
 //------------------------------------------------------------------------------
@@ -355,6 +384,7 @@ template <typename T>
 inline CudaArray2D<T> &CudaArray2D<T>::operator=(const T *host_array) {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
   cudaMemcpy2D(dev_array_ref_, pitch_, host_array, width_in_bytes,
                width_in_bytes, height_, cudaMemcpyHostToDevice);
 
@@ -367,6 +397,8 @@ template <typename T>
 inline void CudaArray2D<T>::CopyTo(T *host_array) const {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
+  const cudaError_t status = cudaPeekAtLastError();
   cudaMemcpy2D(host_array, width_in_bytes, dev_array_ref_, pitch_,
                width_in_bytes, height_, cudaMemcpyDeviceToHost);
 }
@@ -380,8 +412,19 @@ inline void CudaArray2D<T>::CopyTo(CudaArray2D<T> *other) const {
   }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
-  cudaMemcpy2D(other->dev_array_ref_, other->pitch_, dev_array_ref_, pitch_,
-               width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  if (device_ == other->Device()) {
+    internal::SetDevice(device_);
+    cudaMemcpy2D(other->dev_array_ref_, other->pitch_, dev_array_ref_, pitch_,
+                 width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstPtr = other->GetPitchedPtr();
+    params.srcDevice = device_;
+    params.srcPtr = GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -390,9 +433,21 @@ template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaSurface2D<T> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
-  cudaMemcpy2DToArray(other->DeviceArray(), other->XOffset() * sizeof(T),
-                      other->YOffset(), dev_array_ref_, pitch_,
-                      width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  if (device_ == other->Device()) {
+    internal::SetDevice(device_);
+    cudaMemcpy2DToArray(other->DeviceArray(), other->XOffset() * sizeof(T),
+                        other->YOffset(), dev_array_ref_, pitch_,
+                        width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(other->XOffset(), other->YOffset(), 0);
+    params.srcDevice = device_;
+    params.srcPtr = GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -401,8 +456,20 @@ template <typename T>
 inline void CudaArray2D<T>::CopyTo(CudaTexture2D<T> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
-  cudaMemcpy2DToArray(other->DeviceArray(), 0, 0, dev_array_ref_, pitch_,
-                      width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  if (device_ == other->Device()) {
+    internal::SetDevice(device_);
+    cudaMemcpy2DToArray(other->DeviceArray(), 0, 0, dev_array_ref_, pitch_,
+                        width_ * sizeof(T), height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.srcDevice = device_;
+    params.srcPtr = GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------

@@ -82,6 +82,7 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
   using Base::height_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -106,6 +107,33 @@ class CudaTexture2D : public CudaArray2DBase<CudaTexture2D<T>> {
   // TODO (True): normalizedCoords
   CudaTexture2D(
       SizeType width, SizeType height,
+      const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
+      const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
+      const cudaTextureReadMode read_mode = cudaReadModeElementType,
+      const dim3 block_dim = CudaTexture2D<T>::kBlockDim,
+      const cudaStream_t stream = 0)  // default stream
+      : CudaTexture2D(width, height, internal::GetDevice(), filter_mode,
+                      address_mode, read_mode, block_dim, stream) {}
+
+  /**
+   * Constructor.
+   * @param width number of columns in the array, assuming a row-major array
+   * @param height number of rows in the array, assuming a row-major array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param filter_mode use cudaFilterModeLinear to allow for interpolation
+   * @param address_mode specifies how to read values outside of 2D extent of
+   *   the texture
+   * @param read_mode can also optionally specify this as
+   *   cudaReadModeNormalizedFloat
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   *   extents of the array
+   */
+  // TODO (True): normalizedCoords
+  CudaTexture2D(
+      SizeType width, SizeType height, int device,
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
@@ -204,13 +232,13 @@ struct CudaArrayTraits<CudaTexture2D<T>> {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaTexture2D<T>::CudaTexture2D<T>(SizeType width, SizeType height,
+CudaTexture2D<T>::CudaTexture2D<T>(SizeType width, SizeType height, int device,
                                    const cudaTextureFilterMode filter_mode,
                                    const cudaTextureAddressMode address_mode,
                                    const cudaTextureReadMode read_mode,
                                    const dim3 block_dim,
                                    const cudaStream_t stream)
-    : Base(width, height, block_dim, stream),
+    : Base(width, height, device, block_dim, stream),
       shared_texture_(width, height, filter_mode, address_mode, read_mode) {}
 
 //------------------------------------------------------------------------------
@@ -243,6 +271,7 @@ template <typename T>
 inline CudaTexture2D<T> &CudaTexture2D<T>::operator=(const T *host_array) {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
   cudaMemcpy2DToArray(DeviceArray(), 0, 0, host_array, width_in_bytes,
                       width_in_bytes, height_, cudaMemcpyHostToDevice);
 
@@ -255,6 +284,7 @@ template <typename T>
 inline void CudaTexture2D<T>::CopyTo(T *host_array) const {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
   cudaMemcpy2DFromArray(host_array, width_in_bytes, DeviceArray(), 0, 0,
                         width_in_bytes, height_, cudaMemcpyDeviceToHost);
 }

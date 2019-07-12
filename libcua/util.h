@@ -45,6 +45,27 @@ namespace internal {
 
 //------------------------------------------------------------------------------
 
+// Return either the input argument, if it is not -1, or the current GPU.
+inline int GetDevice(int device = -1) {
+  if (device == -1) {
+    cudaGetDevice(&device);
+  }
+  return device;
+}
+
+// Set the current device only if it is not already in use. This is to avoid
+// triggering cudaErrorDeviceAlreadyInUse.
+inline cudaError_t SetDevice(int device) {
+  int current_device;
+  cudaGetDevice(&current_device);
+  if (device != current_device) {
+    return cudaSetDevice(device);
+  }
+  return cudaSuccess;
+}
+
+//------------------------------------------------------------------------------
+
 template <typename T>
 inline std::string ArraySizeToString2D(const T &array) {
   return "(" + std::to_string(array.Width()) + ", " +
@@ -72,6 +93,19 @@ inline void CheckNotNull(const T *value) {
 //------------------------------------------------------------------------------
 
 template <typename T1, typename T2>
+inline void CheckSameDevice(const T1 &array1, const T2 &array2) {
+#ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
+  if (array1.Device() != array2.Device()) {
+    throw std::runtime_error("Arrays are on different GPUs (" +
+                             std::to_string(array1.Device()) + " vs " +
+                             std::to_string(array2.Device()) + ").");
+  }
+#endif
+}
+
+//------------------------------------------------------------------------------
+
+template <typename T1, typename T2>
 inline void CheckCompatibleTypes(const T1 &array1, const T2 &array2) {
   static_assert(std::is_same<typename T1::Scalar, typename T2::Scalar>::value,
                 "Arrays have different scalar types.");
@@ -85,6 +119,18 @@ inline void CheckSizeEqual2D(const T1 &array1, const T2 &array2) {
 #ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
   if (array1.Width() != array2.Width() || array1.Height() != array2.Height()) {
     throw std::runtime_error("Arrays have different sizes (" +
+                             ArraySizeToString2D(array1) + " vs " +
+                             ArraySizeToString2D(array2) + ").");
+  }
+#endif
+}
+
+template <typename T1, typename T2>
+inline void CheckFlippedSizeEqual2D(const T1 &array1, const T2 &array2) {
+  CheckCompatibleTypes(array1, array2);
+#ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
+  if (array1.Width() != array2.Height() || array1.Height() != array2.Width()) {
+    throw std::runtime_error("Arrays have incompatible sizes (" +
                              ArraySizeToString2D(array1) + " vs " +
                              ArraySizeToString2D(array2) + ").");
   }

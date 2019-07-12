@@ -82,6 +82,7 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
   using Base::height_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -101,6 +102,26 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
    */
   CudaSurface2D(
       SizeType width, SizeType height,
+      const dim3 block_dim = CudaSurface2D<T>::kBlockDim,
+      const cudaStream_t stream = 0,  // default stream
+      const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero)
+      : CudaSurface2D(width, height, internal::GetDevice(), block_dim, stream,
+                      boundary_mode) {}
+
+  /**
+   * Constructor.
+   * @param width number of columns in the array, assuming a row-major array
+   * @param height number of rows in the array, assuming a row-major array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   * @param boundary_mode boundary mode to use for reads that go outside the 2D
+   *   extents of the array
+   */
+  CudaSurface2D(
+      SizeType width, SizeType height, int device,
       const dim3 block_dim = CudaSurface2D<T>::kBlockDim,
       const cudaStream_t stream = 0,  // default stream
       const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero);
@@ -133,8 +154,9 @@ class CudaSurface2D : public CudaArray2DBase<CudaSurface2D<T>> {
 
   /**
    * Create an empty array of the same size as the current array.
+   * @param device GPU on which this array is stored, or -1 for the current GPU
    */
-  CudaSurface2D<T> EmptyCopy() const;
+  CudaSurface2D<T> EmptyCopy(int device = -1) const;
 
   /**
    * Create a new empty array with transposed dimensions (flipped height/width).
@@ -279,11 +301,11 @@ struct CudaArrayTraits<CudaSurface2D<T>> {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaSurface2D<T>::CudaSurface2D<T>(SizeType width, SizeType height,
+CudaSurface2D<T>::CudaSurface2D<T>(SizeType width, SizeType height, int device,
                                    const dim3 block_dim,
                                    const cudaStream_t stream,
                                    const cudaSurfaceBoundaryMode boundary_mode)
-    : Base(width, height, block_dim, stream),
+    : Base(width, height, device, block_dim, stream),
       boundary_mode_(boundary_mode),
       shared_surface_(width, height),
       x_offset_(0),
@@ -308,7 +330,7 @@ template <typename T>
 CudaSurface2D<T>::CudaSurface2D<T>(IndexType x, IndexType y, SizeType width,
                                    SizeType height,
                                    const CudaSurface2D<T> &other)
-    : Base(width, height, other.block_dim_, other.stream_),
+    : Base(width, height, other.device_, other.block_dim_, other.stream_),
       boundary_mode_(other.boundary_mode_),
       shared_surface_(other.shared_surface_),
       x_offset_(x + other.x_offset_),
@@ -317,8 +339,12 @@ CudaSurface2D<T>::CudaSurface2D<T>(IndexType x, IndexType y, SizeType width,
 //------------------------------------------------------------------------------
 
 template <typename T>
-inline CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy() const {
-  return CudaSurface2D<T>(width_, height_, block_dim_, stream_, boundary_mode_);
+inline CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy(int device) const {
+  if (device == -1) {
+    device = device_;
+  }
+  return CudaSurface2D<T>(width_, height_, device, block_dim_, stream_,
+                          boundary_mode_);
 }
 
 //------------------------------------------------------------------------------
@@ -326,8 +352,9 @@ inline CudaSurface2D<T> CudaSurface2D<T>::EmptyCopy() const {
 // create a transposed version (flipped height/width) of the given matrix
 template <typename T>
 inline CudaSurface2D<T> CudaSurface2D<T>::EmptyFlippedCopy() const {
-  return CudaSurface2D<T>(height_, width_, dim3(block_dim_.y, block_dim_.x),
-                          stream_, boundary_mode_);
+  return CudaSurface2D<T>(height_, width_, device_,
+                          dim3(block_dim_.y, block_dim_.x), stream_,
+                          boundary_mode_);
 }
 
 //------------------------------------------------------------------------------
@@ -336,6 +363,7 @@ template <typename T>
 inline CudaSurface2D<T> &CudaSurface2D<T>::operator=(const T *host_array) {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
   cudaMemcpy2DToArray(DeviceArray(), x_offset_ * sizeof(T), y_offset_,
                       host_array, width_in_bytes, width_in_bytes, height_,
                       cudaMemcpyHostToDevice);
@@ -370,6 +398,7 @@ template <typename T>
 inline void CudaSurface2D<T>::CopyTo(T *host_array) const {
   internal::CheckNotNull(host_array);
   const SizeType width_in_bytes = width_ * sizeof(T);
+  internal::SetDevice(device_);
   cudaMemcpy2DFromArray(host_array, width_in_bytes, DeviceArray(),
                         x_offset_ * sizeof(T), y_offset_, width_in_bytes,
                         height_, cudaMemcpyDeviceToHost);
@@ -381,9 +410,21 @@ template <typename T>
 inline void CudaSurface2D<T>::CopyTo(CudaArray2D<T> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
-  cudaMemcpy2DFromArray(other->ptr(), other->Pitch(), DeviceArray(),
-                        x_offset_ * sizeof(T), y_offset_, width_ * sizeof(T),
-                        height_, cudaMemcpyDeviceToDevice);
+  if (device_ == other->Device()) {
+    internal::SetDevice(device_);
+    cudaMemcpy2DFromArray(other->ptr(), other->Pitch(), DeviceArray(),
+                          x_offset_ * sizeof(T), y_offset_, width_ * sizeof(T),
+                          height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstPtr = other->GetPitchedPtr();
+    params.srcDevice = device_;
+    params.srcArray = DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, 0);
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -395,10 +436,23 @@ inline void CudaSurface2D<T>::CopyTo(CudaSurface2D<T> *other) const {
   }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
-  cudaMemcpy2DArrayToArray(other->DeviceArray(), other->x_offset_ * sizeof(T),
-                           other->y_offset_, DeviceArray(),
-                           x_offset_ * sizeof(T), y_offset_, width_ * sizeof(T),
-                           height_, cudaMemcpyDeviceToDevice);
+  if (device_ == other->Device()) {
+    internal::SetDevice(device_);
+    cudaMemcpy2DArrayToArray(
+        other->DeviceArray(), other->x_offset_ * sizeof(T), other->y_offset_,
+        DeviceArray(), x_offset_ * sizeof(T), y_offset_, width_ * sizeof(T),
+        height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(other->XOffset(), other->YOffset(), 0);
+    params.srcDevice = device_;
+    params.srcArray = DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, 0);
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -407,9 +461,22 @@ template <typename T>
 inline void CudaSurface2D<T>::CopyTo(CudaTexture2D<T> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual2D(*this, *other);
+  if (device_ == other->Device()) {
+  internal::SetDevice(device_);
   cudaMemcpy2DArrayToArray(other->DeviceArray(), 0, 0, DeviceArray(),
                            x_offset_ * sizeof(T), y_offset_, width_ * sizeof(T),
                            height_, cudaMemcpyDeviceToDevice);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.dstDevice = other->Device();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.srcDevice = device_;
+    params.srcArray = DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, 0);
+    params.extent = make_cudaExtent(width_, height_, 1);
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //-------------------------------------------------------------------------------

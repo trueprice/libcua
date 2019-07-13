@@ -328,7 +328,7 @@ class CudaArray3DBase {
   template <typename CurandStateArrayType, typename RandomFunction,
             class C = CudaArrayTraits<Derived>,
             typename C::Mutable is_mutable = true>
-  void FillRandom(CurandStateArrayType rand_state, RandomFunction func);
+  void FillRandom(CurandStateArrayType &rand_state, RandomFunction func);
 
   //----------------------------------------------------------------------------
   // getters/setters
@@ -530,7 +530,8 @@ template <typename Derived>
 template <typename CurandStateArrayType, typename RandomFunction, class C,
           typename C::Mutable is_mutable>
 inline void CudaArray3DBase<Derived>::FillRandom(
-    CurandStateArrayType rand_state, RandomFunction func) {
+    CurandStateArrayType &rand_state, RandomFunction func) {
+  internal::CheckSameDevice(*this, rand_state);
   const dim3 block_dim(kTileSize, kBlockRows, kBlockRows);
   const dim3 grid_dim((width_ + kTileSize - 1) / kTileSize,
                       (height_ + kTileSize - 1) / kTileSize,

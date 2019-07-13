@@ -42,6 +42,8 @@
 #include <curand_kernel.h>
 #include <chrono>
 
+#include "util.h"
+
 namespace cua {
 
 class CudaRandomStateArray3D;  // forward declaration
@@ -66,7 +68,10 @@ class CudaRandomStateArray3D : public CudaArray3D<curandState_t> {
   CudaRandomStateArray3D(SizeType width, SizeType height, SizeType depth);
 
   CudaRandomStateArray3D(SizeType width, SizeType height, SizeType depth,
-                         size_t seed);
+                         int device);
+
+  CudaRandomStateArray3D(SizeType width, SizeType height, SizeType depth,
+                         int device, size_t seed);
 
  private:
   static inline size_t GetSeed() {
@@ -83,11 +88,17 @@ class CudaRandomStateArray3D : public CudaArray3D<curandState_t> {
 
 CudaRandomStateArray3D::CudaRandomStateArray3D(SizeType width, SizeType height,
                                                SizeType depth)
-    : CudaRandomStateArray3D(width, height, depth, GetSeed()) {}
+    : CudaRandomStateArray3D(width, height, depth, internal::GetDevice(),
+                             GetSeed()) {}
 
 CudaRandomStateArray3D::CudaRandomStateArray3D(SizeType width, SizeType height,
-                                               SizeType depth, size_t seed)
-    : CudaArray3D<curandState_t>::CudaArray3D(width, height, depth) {
+                                               SizeType depth, int device)
+    : CudaRandomStateArray3D(width, height, depth, device, GetSeed()) {}
+
+CudaRandomStateArray3D::CudaRandomStateArray3D(SizeType width, SizeType height,
+                                               SizeType depth, int device,
+                                               size_t seed)
+    : CudaArray3D<curandState_t>::CudaArray3D(width, height, depth, device) {
   kernel::CudaRandomStateArray3DInit<<<grid_dim_, block_dim_>>>(*this, seed);
 }
 

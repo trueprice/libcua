@@ -42,6 +42,8 @@
 #include <curand_kernel.h>
 #include <chrono>
 
+#include "util.h"
+
 namespace cua {
 
 class CudaRandomStateArray2D;  // forward declaration
@@ -65,7 +67,10 @@ class CudaRandomStateArray2D : public CudaArray2D<curandState_t> {
 
   CudaRandomStateArray2D(SizeType width, SizeType height);
 
-  CudaRandomStateArray2D(SizeType width, SizeType height, size_t seed);
+  CudaRandomStateArray2D(SizeType width, SizeType height, int device);
+
+  CudaRandomStateArray2D(SizeType width, SizeType height, int device,
+                         size_t seed);
 
  private:
   static inline size_t GetSeed() {
@@ -81,11 +86,15 @@ class CudaRandomStateArray2D : public CudaArray2D<curandState_t> {
 //------------------------------------------------------------------------------
 
 CudaRandomStateArray2D::CudaRandomStateArray2D(SizeType width, SizeType height)
-    : CudaRandomStateArray2D(width, height, GetSeed()) {}
+    : CudaRandomStateArray2D(width, height, internal::GetDevice(), GetSeed()) {}
 
 CudaRandomStateArray2D::CudaRandomStateArray2D(SizeType width, SizeType height,
-                                               size_t seed)
-    : CudaArray2D<curandState_t>::CudaArray2D(width, height) {
+                                               int device)
+    : CudaRandomStateArray2D(width, height, device, GetSeed()) {}
+
+CudaRandomStateArray2D::CudaRandomStateArray2D(SizeType width, SizeType height,
+                                               int device, size_t seed)
+    : CudaArray2D<curandState_t>::CudaArray2D(width, height, device) {
   kernel::CudaRandomStateArray2DInit<<<grid_dim_, block_dim_>>>(*this, seed);
 }
 

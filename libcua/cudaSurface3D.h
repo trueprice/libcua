@@ -90,6 +90,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   using Base::depth_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -100,7 +101,7 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    * Constructor.
    * @param width number of elements in the first dimension of the array
    * @param height number of elements in the second dimension of the array
-   * @param height number of elements in the third dimension of the array
+   * @param depth number of elements in the third dimension of the array
    * @param block_dim default block size for CUDA kernel calls involving this
    *   object, i.e., the values for blockDim.x/y/z; note that the default grid
    *   dimension is computed automatically based on the array size
@@ -110,6 +111,27 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
    */
   CudaSurface3DBase(
       SizeType width, SizeType height, SizeType depth,
+      const dim3 block_dim = CudaSurface3DBase<Derived>::kBlockDim,
+      const cudaStream_t stream = 0,  // default stream
+      const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero)
+      : CudaSurface3DBase(width, height, depth, internal::GetDevice(),
+                          block_dim, stream, boundary_mode) {}
+
+  /**
+   * Constructor.
+   * @param width number of elements in the first dimension of the array
+   * @param height number of elements in the second dimension of the array
+   * @param depth number of elements in the third dimension of the array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   * @param boundary_mode boundary mode to use for reads that go outside the 3D
+   *   extents of the array
+   */
+  CudaSurface3DBase(
+      SizeType width, SizeType height, SizeType depth, int device,
       const dim3 block_dim = CudaSurface3DBase<Derived>::kBlockDim,
       const cudaStream_t stream = 0,  // default stream
       const cudaSurfaceBoundaryMode boundary_mode = cudaBoundaryModeZero);
@@ -144,8 +166,9 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
 
   /**
    * Create an empty array of the same size as the current array.
+   * @param device GPU on which this array is stored, or -1 for the current GPU
    */
-  CudaSurface3DBase<Derived> EmptyCopy() const;
+  CudaSurface3DBase<Derived> EmptyCopy(int device = -1) const;
 
   /**
    * Shallow re-assignment of the given array to share the contents of another.
@@ -243,10 +266,10 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
 
 template <typename Derived>
 CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
-    SizeType width, SizeType height, SizeType depth,
+    SizeType width, SizeType height, SizeType depth, int device,
     const dim3 block_dim, const cudaStream_t stream,
     const cudaSurfaceBoundaryMode boundary_mode)
-    : Base(width, height, depth, block_dim, stream),
+    : Base(width, height, depth, device, block_dim, stream),
       boundary_mode_(boundary_mode),
       shared_surface_(width, height, depth,
                       CudaArrayTraits<Derived>::IsLayered::value),
@@ -274,7 +297,8 @@ template <typename Derived>
 CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
     IndexType x, IndexType y, IndexType z, SizeType width, SizeType height,
     SizeType depth, const CudaSurface3DBase<Derived> &other)
-    : Base(width, height, depth, other.block_dim_, other.stream_),
+    : Base(width, height, depth, other.device_, other.block_dim_,
+           other.stream_),
       boundary_mode_(other.boundary_mode_),
       shared_surface_(other.shared_surface_),
       x_offset_(x + other.x_offset_),
@@ -284,9 +308,12 @@ CudaSurface3DBase<Derived>::CudaSurface3DBase<Derived>(
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-inline CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy()
-    const {
-  return CudaSurface3DBase<Derived>(width_, height_, depth_, block_dim_,
+inline CudaSurface3DBase<Derived> CudaSurface3DBase<Derived>::EmptyCopy(
+    int device) const {
+  if (device == -1) {
+    device = device_;
+  }
+  return CudaSurface3DBase<Derived>(width_, height_, depth_, device, block_dim_,
                                     stream_, boundary_mode_);
 }
 
@@ -296,6 +323,7 @@ template <typename Derived>
 inline CudaSurface3DBase<Derived> &CudaSurface3DBase<Derived>::operator=(
     const Scalar *host_array) {
   internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
 
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
@@ -338,6 +366,7 @@ template <typename Derived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<Derived>::Scalar *host_array) const {
   internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
 
   cudaMemcpy3DParms params = {0};
   params.srcArray = shared_surface_.DeviceArray();
@@ -357,15 +386,28 @@ inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaArray3D<Scalar> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcArray = shared_surface_.DeviceArray();
-  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
-  params.dstPtr = other->GetPitchedPtr();
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstPtr = other->GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstPtr = other->GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -374,19 +416,37 @@ template <typename Derived>
 template <typename OtherDerived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<OtherDerived> *other) const {
+  if (this == other) {
+    return;
+  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcArray = shared_surface_.DeviceArray();
-  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
-  params.dstArray = other->DeviceArray();
-  params.dstPos =
-      make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstArray = other->DeviceArray();
+    params.dstPos =
+        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstArray = other->DeviceArray();
+    params.dstPos =
+        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -395,21 +455,32 @@ template <typename Derived>
 template <typename OtherDerived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaTexture3DBase<OtherDerived> *other) const {
-  if (this == other) {
-    return;
-  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcArray = shared_surface_.DeviceArray();
-  params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
-  params.dstArray = other->DeviceArray();
-  params.dstPos = make_cudaPos(0, 0, 0);
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcArray = shared_surface_.DeviceArray();
+    params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------

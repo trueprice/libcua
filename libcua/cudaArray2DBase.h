@@ -84,7 +84,7 @@ struct CudaArrayTraits;  // forward declaration
  *
  * These methods are necessary for derived classes that are read-write:
  *
- * -  EmptyCopy(int device = -1): to create a new array of the same size
+ * -  EmptyCopy(device): to create a new array of the same size on the given GPU
  *    - `Derived EmptyCopy(int device = -1) const;`
  * -  EmptyFlippedCopy(): create a new array with flipped width/height
  *    - `Derived EmptyFlippedCopy() const;`
@@ -188,8 +188,8 @@ class CudaArray2DBase {
   ENABLE_IF_MUTABLE
   inline Derived Copy(int device = -1) const {
     Derived result = derived().EmptyCopy(device);
-    // The specialized CopyTo implementation should handle the case where the
-    // output is on a different device.
+    // The specialized CopyTo implementation in the subclass should handle the
+    // case where the output is on a different device.
     CopyTo(&result);
     return result;
   }

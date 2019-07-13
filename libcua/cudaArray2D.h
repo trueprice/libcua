@@ -289,7 +289,6 @@ template <typename T>
 CudaArray2D<T>::CudaArray2D<T>(SizeType width, SizeType height, int device,
                                const dim3 block_dim, const cudaStream_t stream)
     : Base(width, height, device, block_dim, stream), dev_array_(nullptr) {
-  internal::SetDevice(device_);
   cudaMallocPitch(&dev_array_ref_, &pitch_, sizeof(T) * width_, height_);
 #ifdef __CUDA_ARCH__
 #else

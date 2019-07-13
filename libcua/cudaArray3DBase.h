@@ -170,13 +170,12 @@ struct CudaArrayTraits;  // forward declaration
  * This class includes implementations for Copy, etc.
  * All derived classes need to define the following methods:
  *
- * - copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
- *   perform host-specific instructions
- *   - `__host__ __device__ Derived(const Derived &other);`
- * - get(): read from array position
- *   - `__device__
- *   inline Scalar get(const unsigned int x, const unsigned int y, const
- *                     unsigned int z) const;`
+ * -  copy constructor on host *and* device; use `#ifndef __CUDA_ARCH__` to
+ *    perform host-specific instructions
+ *    - `__host__ __device__ Derived(const Derived &other);`
+ * -  get(): read from array position
+ *    - `__device__ inline Scalar get(unsigned int x, unsigned int y, 
+ *                                    unsigned int z) const;`
  *
  * These methods are suggested for copying the array or updating it with data
  * from the CPU:
@@ -189,11 +188,11 @@ struct CudaArrayTraits;  // forward declaration
  *
  * These methods are necessary for derived classes that are read-write:
  *
- * - EmptyCopy(): to create a new array of the same size
- *   - `Derived EmptyCopy() const;`
- * - set(): write to array position (optional for readonly subclasses)
- *   - `__device__ inline void set(unsigned int x, unsigned int y,
- *                                 unsigned int z, Scalar value);`
+ * -  EmptyCopy(device): to create a new array of the same size on the given GPU
+ *    - `Derived EmptyCopy(int device = -1) const;`
+ * -  set(): write to array position (optional for readonly subclasses)
+ *    - `__device__ inline void set(unsigned int x, unsigned int y,
+ *                                  unsigned int z, Scalar value);`
  *
  * Also, any derived class will need to separately declare a CudaArrayTraits
  * struct instantiation with a "Scalar" member, e.g.,
@@ -235,12 +234,13 @@ class CudaArray3DBase {
    * Constructor.
    * @param width number of columns in the array, assuming a row-major array
    * @param height number of rows in the array, assuming a row-major array
+   * @param device GPU on which this array is stored
    * @param block_dim default block size for CUDA kernel calls involving this
    *   object, i.e., the values for blockDim.x/y/z; note that the default grid
    *   dimension is computed automatically based on the array size
    * @param stream CUDA stream for this array object
    */
-  CudaArray3DBase(SizeType width, SizeType height, SizeType depth,
+  CudaArray3DBase(SizeType width, SizeType height, SizeType depth, int device,
                   const dim3 block_dim = CudaArray3DBase<Derived>::kBlockDim,
                   const cudaStream_t stream = 0);  // default stream
 
@@ -255,6 +255,7 @@ class CudaArray3DBase {
         depth_(other.depth_),
         block_dim_(other.block_dim_),
         grid_dim_(other.grid_dim_),
+        device_(other.device_),
         stream_(other.stream_) {}
 
   /**
@@ -284,11 +285,14 @@ class CudaArray3DBase {
   // general array operations that create a new object
 
   /**
+   * @param device destination GPU for the new array, or -1 to use the same GPU
    * @return a new copy of the current array.
    */
   ENABLE_IF_MUTABLE
-  Derived Copy() const {
-    Derived result = derived().EmptyCopy();
+  Derived Copy(int device = -1) const {
+    Derived result = derived().EmptyCopy(device);
+    // The specialized CopyTo implementation in the subclass should handle the
+    // case where the output is on a different device.
     Copy(result);
     return result;
   }
@@ -310,6 +314,7 @@ class CudaArray3DBase {
    */
   ENABLE_IF_MUTABLE
   inline void Fill(const Scalar value) {
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseFill<<<grid_dim_, block_dim_, 0, stream_>>>(
         derived(), value);
   }
@@ -345,6 +350,8 @@ class CudaArray3DBase {
                      (depth_ + block_dim.z - 1) / block_dim_.z);
   }
 
+  inline int Device() const { return device_; }
+
   inline cudaStream_t Stream() const { return stream_; }
   inline void SetStream(const cudaStream_t stream) { stream_ = stream; }
 
@@ -370,6 +377,7 @@ class CudaArray3DBase {
   template <class Function, class C = CudaArrayTraits<Derived>,
             typename C::Mutable is_mutable = true>
   void ApplyOp(Function op, const unsigned int shared_mem_bytes = 0) {
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, shared_mem_bytes,
                                      stream_>>>(derived(), op);
   }
@@ -381,6 +389,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator+=(const Scalar value) {
     Derived &tmp = derived();
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) + value;
@@ -394,6 +403,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator-=(const Scalar value) {
     Derived &tmp = derived();
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) - value;
@@ -407,6 +417,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator*=(const Scalar value) {
     Derived &tmp = derived();
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) * value;
@@ -420,6 +431,7 @@ class CudaArray3DBase {
   ENABLE_IF_MUTABLE
   inline void operator/=(const Scalar value) {
     Derived &tmp = derived();
+    internal::SetDevice(device_);
     kernel::CudaArray3DBaseApplyOp<<<grid_dim_, block_dim_, 0, stream_>>>(
         tmp, [tmp, value] __device__(IndexType x, IndexType y, IndexType z) {
           return tmp.get(x, y, z) / value;
@@ -433,6 +445,8 @@ class CudaArray3DBase {
   SizeType width_, height_, depth_;
 
   dim3 block_dim_, grid_dim_;  // for calling kernels
+
+  int device_;  // the GPU where the data for this array is stored
 
   cudaStream_t stream_;  // the stream on the GPU in which the class kernels run
 };
@@ -461,12 +475,14 @@ const typename CudaArray3DBase<Derived>::SizeType
 //------------------------------------------------------------------------------
 
 template <typename Derived>
-CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(const SizeType width,
-                                                   const SizeType height,
-                                                   const SizeType depth,
-                                                   const dim3 block_dim,
-                                                   const cudaStream_t stream)
-    : width_(width), height_(height), depth_(depth), stream_(stream) {
+CudaArray3DBase<Derived>::CudaArray3DBase<Derived>(
+    const SizeType width, const SizeType height, const SizeType depth,
+    int device, const dim3 block_dim, const cudaStream_t stream)
+    : width_(width),
+      height_(height),
+      depth_(depth),
+      device_(device),
+      stream_(stream) {
   SetBlockDim(block_dim);
 }
 
@@ -485,6 +501,7 @@ inline CudaArray3DBase<Derived> &CudaArray3DBase<Derived>::operator=(
 
   block_dim_ = other.block_dim_;
   grid_dim_ = other.grid_dim_;
+  device_ = other.device_;
   stream_ = other.stream_;
 
   return *this;
@@ -499,8 +516,11 @@ inline void CudaArray3DBase<Derived>::CopyTo(OtherDerived *other) const {
   if (this == other) {
     return;
   }
+
   internal::CheckNotNull(other);
+  internal::CheckSameDevice(*this, *other);
   internal::CheckSizeEqual2D(*this, *other);
+  internal::SetDevice(device_);
   kernel::CudaArray3DBaseCopyTo<<<grid_dim_, block_dim_>>>(derived(), *other);
 }
 
@@ -516,6 +536,7 @@ inline void CudaArray3DBase<Derived>::FillRandom(
                       (height_ + kTileSize - 1) / kTileSize,
                       (depth_ + kTileSize - 1) / kTileSize);
 
+  internal::SetDevice(device_);
   kernel::CudaArray3DBaseFillRandom<<<grid_dim, block_dim, 0, stream_>>>(
       rand_state, derived(), func);
 }

@@ -86,6 +86,7 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
   using Base::depth_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -96,7 +97,7 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
    * Constructor.
    * @param width number of elements in the first dimension of the array
    * @param height number of elements in the second dimension of the array
-   * @param height number of elements in the third dimension of the array
+   * @param depth number of elements in the third dimension of the array
    * @param filter_mode use cudaFilterModeLinear to allow for interpolation
    * @param address_mode specifies how to read values outside of 2D extent of
    *   the texture
@@ -110,6 +111,34 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
    */
   CudaTexture3DBase(
       SizeType width, SizeType height, SizeType depth,
+      const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
+      const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
+      const cudaTextureReadMode read_mode = cudaReadModeElementType,
+      const dim3 block_dim = CudaTexture3DBase<Derived>::kBlockDim,
+      const cudaStream_t stream = 0)  // default stream
+      : CudaTexture3DBase(width, height, depth, internal::GetDevice(),
+                          filter_mode, address_mode, read_mode, block_dim,
+                          stream) {}
+
+  /**
+   * Constructor.
+   * @param width number of elements in the first dimension of the array
+   * @param height number of elements in the second dimension of the array
+   * @param depth number of elements in the third dimension of the array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param filter_mode use cudaFilterModeLinear to allow for interpolation
+   * @param address_mode specifies how to read values outside of 2D extent of
+   *   the texture
+   * @param read_mode can also optionally specify this as
+   *   cudaReadModeNormalizedFloat
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   *   extents of the array
+   */
+  CudaTexture3DBase(
+      SizeType width, SizeType height, SizeType depth, int device,
       const cudaTextureFilterMode filter_mode = cudaFilterModePoint,
       const cudaTextureAddressMode address_mode = cudaAddressModeBorder,
       const cudaTextureReadMode read_mode = cudaReadModeElementType,
@@ -166,12 +195,12 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
 
 template <typename Derived>
 CudaTexture3DBase<Derived>::CudaTexture3DBase<Derived>(
-    SizeType width, SizeType height, SizeType depth,
+    SizeType width, SizeType height, SizeType depth, int device,
     const cudaTextureFilterMode filter_mode,
     const cudaTextureAddressMode address_mode,
     const cudaTextureReadMode read_mode, const dim3 block_dim,
     const cudaStream_t stream)
-    : Base(width, height, depth, block_dim, stream),
+    : Base(width, height, depth, device, block_dim, stream),
       shared_texture_(width, height, depth, filter_mode, address_mode,
                       read_mode, CudaArrayTraits<Derived>::IsLayered::value) {}
 
@@ -204,6 +233,8 @@ inline CudaTexture3DBase<Derived> &CudaTexture3DBase<Derived>::operator=(
 template <typename Derived>
 inline CudaTexture3DBase<Derived> &CudaTexture3DBase<Derived>::operator=(
     const Scalar *host_array) {
+  internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
   cudaMemcpy3DParms params = {0};
   params.srcPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),
                                       width_ * sizeof(Scalar), width_, height_);
@@ -221,6 +252,8 @@ inline CudaTexture3DBase<Derived> &CudaTexture3DBase<Derived>::operator=(
 template <typename Derived>
 inline void CudaTexture3DBase<Derived>::CopyTo(
     CudaTexture3DBase<Derived>::Scalar *host_array) const {
+  internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
   cudaMemcpy3DParms params = {0};
   params.srcArray = shared_texture_.DeviceArray();
   params.dstPtr = make_cudaPitchedPtr(const_cast<Scalar *>(host_array),

@@ -84,6 +84,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
   using Base::depth_;
   using Base::block_dim_;
   using Base::grid_dim_;
+  using Base::device_;
   using Base::stream_;
 
  public:
@@ -94,13 +95,30 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * Constructor.
    * @param width number of elements in the first dimension of the array
    * @param height number of elements in the second dimension of the array
-   * @param height number of elements in the third dimension of the array
+   * @param depth number of elements in the third dimension of the array
    * @param block_dim default block size for CUDA kernel calls involving this
    *   object, i.e., the values for blockDim.x/y/z; note that the default grid
    *   dimension is computed automatically based on the array size
    * @param stream CUDA stream for this array object
    */
   CudaArray3D(SizeType width, SizeType height, SizeType depth,
+              const dim3 block_dim = CudaArray3D<T>::kBlockDim,
+              const cudaStream_t stream = 0)  // default stream
+      : CudaArray3D(width, height, depth, internal::GetDevice(), block_dim,
+                    stream) {}
+
+  /**
+   * Constructor.
+   * @param width number of elements in the first dimension of the array
+   * @param height number of elements in the second dimension of the array
+   * @param depth number of elements in the third dimension of the array
+   * @param device GPU on which this array is stored, or -1 for the current GPU
+   * @param block_dim default block size for CUDA kernel calls involving this
+   *   object, i.e., the values for blockDim.x/y/z; note that the default grid
+   *   dimension is computed automatically based on the array size
+   * @param stream CUDA stream for this array object
+   */
+  CudaArray3D(SizeType width, SizeType height, SizeType depth, int device,
               const dim3 block_dim = CudaArray3D<T>::kBlockDim,
               const cudaStream_t stream = 0);  // default stream
 
@@ -117,8 +135,9 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
 
   /**
    * Create an empty array of the same size as the current array.
+   * @param device GPU on which this array is stored, or -1 for the current GPU
    */
-  CudaArray3D<T> EmptyCopy() const;
+  CudaArray3D<T> EmptyCopy(int device = -1) const;
 
   /**
    * Shallow re-assignment of the given array to share the contents of another.
@@ -174,7 +193,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * @param width width of the view
    * @param height height of the view
    * @param depth depth of the view
-   * @return new CudaArray2D object whose underlying device pointer and size is
+   * @return new CudaArray3D object whose underlying device pointer and size is
    * aligned with the view
    */
   inline CudaArray3D<T> View(IndexType x, IndexType y, IndexType z,
@@ -238,8 +257,7 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
    * Return a cudaPitchedPtr representation for the underlying allocated memory.
    */
   inline cudaPitchedPtr GetPitchedPtr() const {
-    size_t width_in_bytes = width_ * sizeof(T);
-    return make_cudaPitchedPtr(dev_array_ref_, pitch_, width_in_bytes,
+    return make_cudaPitchedPtr(dev_array_ref_, pitch_, width_ * sizeof(T),
                                y_pitch_);
   }
 
@@ -272,10 +290,10 @@ class CudaArray3D : public CudaArray3DBase<CudaArray3D<T>> {
 //------------------------------------------------------------------------------
 
 template <typename T>
-CudaArray3D<T>::CudaArray3D<T>(SizeType width, SizeType height,
-                               SizeType depth, const dim3 block_dim,
+CudaArray3D<T>::CudaArray3D<T>(SizeType width, SizeType height, SizeType depth,
+                               int device, const dim3 block_dim,
                                const cudaStream_t stream)
-    : Base(width, height, depth, block_dim, stream),
+    : Base(width, height, depth, device, block_dim, stream),
       dev_array_(nullptr),
       y_pitch_(height) {
   cudaPitchedPtr dev_pitched_ptr;
@@ -313,7 +331,8 @@ template <typename T>
 CudaArray3D<T>::CudaArray3D<T>(IndexType x, IndexType y, IndexType z,
                                SizeType width, SizeType height, SizeType depth,
                                const CudaArray3D<T> &other)
-    : Base(width, height, depth, other.block_dim_, other.stream_),
+    : Base(width, height, depth, other.device_, other.block_dim_,
+           other.stream_),
       pitch_(other.pitch_),
       y_pitch_(other.y_pitch_),
 #ifdef __CUDA_ARCH__
@@ -341,8 +360,11 @@ CudaArray3D<T>::~CudaArray3D<T>() {
 //------------------------------------------------------------------------------
 
 template <typename T>
-inline CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
-  return CudaArray3D<T>(width_, height_, depth_, block_dim_, stream_);
+inline CudaArray3D<T> CudaArray3D<T>::EmptyCopy(int device) const {
+  if (device == -1) {
+    device = device_;
+  }
+  return CudaArray3D<T>(width_, height_, depth_, device, block_dim_, stream_);
 }
 
 //------------------------------------------------------------------------------
@@ -350,6 +372,7 @@ inline CudaArray3D<T> CudaArray3D<T>::EmptyCopy() const {
 template <typename T>
 inline CudaArray3D<T> &CudaArray3D<T>::operator=(const T *host_array) {
   internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
 
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
@@ -377,7 +400,10 @@ inline CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
   pitch_ = other.pitch_;
   y_pitch_ = other.y_pitch_;
 
+#ifdef __CUDA_ARCH__
+#else
   dev_array_ = other.dev_array_;
+#endif
   dev_array_ref_ = other.dev_array_ref_;
 
   return *this;
@@ -388,6 +414,7 @@ inline CudaArray3D<T> &CudaArray3D<T>::operator=(const CudaArray3D<T> &other) {
 template <typename T>
 inline void CudaArray3D<T>::CopyTo(T *host_array) const {
   internal::CheckNotNull(host_array);
+  internal::SetDevice(device_);
 
   size_t width_in_bytes = width_ * sizeof(T);
   cudaMemcpy3DParms params = {0};
@@ -404,16 +431,31 @@ inline void CudaArray3D<T>::CopyTo(T *host_array) const {
 
 template <typename T>
 inline void CudaArray3D<T>::CopyTo(CudaArray3D<T> *other) const {
+  if (this == other) {
+    return;
+  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcPtr = GetPitchedPtr();
-  params.dstPtr = other->GetPitchedPtr();
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcPtr = GetPitchedPtr();
+    params.dstPtr = other->GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcPtr = GetPitchedPtr();
+    params.dstPtr = other->GetPitchedPtr();
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -424,16 +466,30 @@ inline void CudaArray3D<T>::CopyTo(
     CudaSurface3DBase<OtherDerived> *other) const {
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcPtr = GetPitchedPtr();
-  params.dstArray = other->DeviceArray();
-  params.dstPos =
-      make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcPtr = GetPitchedPtr();
+    params.dstArray = other->DeviceArray();
+    params.dstPos =
+        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcPtr = GetPitchedPtr();
+    params.dstArray = other->DeviceArray();
+    params.dstPos =
+        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -442,20 +498,30 @@ template <typename T>
 template <typename OtherDerived>
 inline void CudaArray3D<T>::CopyTo(
     CudaTexture3DBase<OtherDerived> *other) const {
-  if (this == other) {
-    return;
-  }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
+  internal::SetDevice(device_);
 
-  cudaMemcpy3DParms params = {0};
-  params.srcPtr = GetPitchedPtr();
-  params.dstArray = other->DeviceArray();
-  params.dstPos = make_cudaPos(0, 0, 0);
-  params.extent = make_cudaExtent(width_, height_, depth_);
-  params.kind = cudaMemcpyDeviceToDevice;
+  if (device_ == other->Device()) {
+    cudaMemcpy3DParms params = {0};
+    params.srcPtr = GetPitchedPtr();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.kind = cudaMemcpyDeviceToDevice;
 
-  cudaMemcpy3D(&params);
+    cudaMemcpy3D(&params);
+  } else {
+    cudaMemcpy3DPeerParms params = {0};
+    params.srcDevice = device_;
+    params.dstDevice = other->Device();
+    params.srcPtr = GetPitchedPtr();
+    params.dstArray = other->DeviceArray();
+    params.dstPos = make_cudaPos(0, 0, 0);
+    params.extent = make_cudaExtent(width_, height_, depth_);
+
+    cudaMemcpy3DPeer(&params);
+  }
 }
 
 //------------------------------------------------------------------------------

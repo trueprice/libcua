@@ -179,6 +179,13 @@ class CudaTexture3DBase : public CudaArray3DBase<Derived> {
    */
   void CopyTo(Scalar *host_array) const;
 
+  /**
+   * @return the underlying cudaArray object for this texture
+   */
+  inline cudaArray *DeviceArray() const {
+    return shared_texture_.DeviceArray();
+  }
+
  protected:
   //
   // protected class fields

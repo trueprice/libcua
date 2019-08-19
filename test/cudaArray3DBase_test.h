@@ -40,6 +40,9 @@
 
 #include "gtest/gtest.h"
 
+#include "cudaArray3D.h"
+#include "cudaSurface3D.h"
+#include "cudaTexture3D.h"
 #include "util.h"
 
 //------------------------------------------------------------------------------
@@ -56,23 +59,24 @@ class CudaArray3DBaseTest
 
   //----------------------------------------------------------------------------
 
-  CudaArray3DBaseTest(size_t width = 10, size_t height = 10, size_t depth = 10)
+  CudaArray3DBaseTest(SizeType width = 10, SizeType height = 10,
+                      SizeType depth = 10)
       : array_(width, height, depth) {}
 
   //----------------------------------------------------------------------------
 
-  template <typename HostFunction>
-  static void DownloadAndCheck(const CudaArrayType& array,
+  template <typename SourceCudaArrayType, typename HostFunction>
+  static void DownloadAndCheck(const SourceCudaArrayType& array,
                                const HostFunction& host_function) {
     CUDA_CHECK_ERROR
     std::vector<Scalar> result(array.Size());
     array.CopyTo(result.data());
     CUDA_CHECK_ERROR
 
-    for (size_t z = 0; z < array.Depth(); ++z) {
-      for (size_t y = 0; y < array.Height(); ++y) {
-        for (size_t x = 0; x < array.Width(); ++x) {
-          const size_t i = (z * array.Height() + y) * array.Width() + x;
+    for (IndexType z = 0; z < array.Depth(); ++z) {
+      for (IndexType y = 0; y < array.Height(); ++y) {
+        for (IndexType x = 0; x < array.Width(); ++x) {
+          const IndexType i = (z * array.Height() + y) * array.Width() + x;
           EXPECT_EQ(result[i], host_function(x, y, z)) << "Coordinate: " << x
                                                        << " " << y << " " << z;
           ;
@@ -90,11 +94,11 @@ class CudaArray3DBaseTest
 
   void CheckUpload() {
     std::vector<Scalar> data(array_.Size());
-    for (size_t i = 0; i < array_.Size(); ++i) {
+    for (IndexType i = 0; i < array_.Size(); ++i) {
       data[i] = AsScalar(i);
     }
     array_ = data.data();
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+    DownloadAndCheck([=](IndexType x, IndexType y, IndexType z) {
       return AsScalar((z * array_.Height() + y) * array_.Width() + x);
     });
   }
@@ -108,14 +112,14 @@ class CudaArray3DBaseTest
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
 
-    for (size_t col = 0; col < array_.Width(); ++col) {
+    for (IndexType col = 0; col < array_.Width(); ++col) {
       auto view =
           array_.View(col, 1, 1, 1, array_.Height() - 1, array_.Depth() - 1);
       view.Fill(AsScalar(col));
       CUDA_CHECK_ERROR
     }
 
-    DownloadAndCheck([](size_t x, size_t y, size_t z) {
+    DownloadAndCheck([](IndexType x, IndexType y, IndexType z) {
       return AsScalar((z > 0 && y > 0) ? x : 0);
     });
   }
@@ -133,13 +137,14 @@ class CudaArray3DBaseTest
 
     auto view = array_.View(1, 1, 1, array_.Width() - 2, array_.Height() - 2,
                             array_.Depth() - 2);
-    view.ApplyOp([] __device__(size_t x, size_t y, size_t z) {
+    view.ApplyOp([] __device__(IndexType x, IndexType y, IndexType z) {
       return AsScalar(x + y + z);
     });
 
-    DownloadAndCheck(
-        view, [](size_t x, size_t y, size_t z) { return AsScalar(x + y + z); });
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+    DownloadAndCheck(view, [](IndexType x, IndexType y, IndexType z) {
+      return AsScalar(x + y + z);
+    });
+    DownloadAndCheck([=](IndexType x, IndexType y, IndexType z) {
       return (x > 0 && x < array_.Width() - 1 && y > 0 &&
               y < array_.Height() - 1 && z > 0 && z < array_.Depth() - 1)
                  ? AsScalar(x - 1 + y - 1 + z - 1)
@@ -162,11 +167,11 @@ class CudaArray3DBaseTest
                             array_.Depth() - 2);
 
     std::vector<Scalar> data(view.Size());
-    for (size_t i = 0; i < view.Size(); ++i) {
+    for (IndexType i = 0; i < view.Size(); ++i) {
       data[i] = AsScalar(i);
     }
     view = data.data();
-    DownloadAndCheck(view, [=](size_t x, size_t y, size_t z) {
+    DownloadAndCheck(view, [=](IndexType x, IndexType y, IndexType z) {
       return AsScalar((z * view.Height() + y) * view.Width() + x);
     });
   }
@@ -192,7 +197,7 @@ class CudaArray3DBaseTest
                             view1.Depth() - 2);
     view2.Fill(kFillValue2);
 
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+    DownloadAndCheck([=](IndexType x, IndexType y, IndexType z) {
       if (x > 1 && x < array_.Width() - 2 && y > 1 && y < array_.Height() - 2 &&
           z > 1 && z < array_.Depth() - 2) {
         return kFillValue2;
@@ -209,7 +214,8 @@ class CudaArray3DBaseTest
 
   void CheckFill(Scalar value) {
     array_.Fill(value);
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -218,10 +224,11 @@ class CudaArray3DBaseTest
     array_.Fill(AsScalar(0));
     CUDA_CHECK_ERROR
     array_ += value;
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
     array_ += value;
     DownloadAndCheck(
-        [=](size_t x, size_t y, size_t z) { return value + value; });
+        [=](IndexType x, IndexType y, IndexType z) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
@@ -230,9 +237,11 @@ class CudaArray3DBaseTest
     array_.Fill(value + value);
     CUDA_CHECK_ERROR
     array_ -= value;
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
     array_ -= value;
-    DownloadAndCheck([](size_t x, size_t y, size_t z) { return AsScalar(0); });
+    DownloadAndCheck(
+        [](IndexType x, IndexType y, IndexType z) { return AsScalar(0); });
   }
 
   //----------------------------------------------------------------------------
@@ -241,10 +250,11 @@ class CudaArray3DBaseTest
     array_.Fill(AsScalar(1));
     CUDA_CHECK_ERROR
     array_ *= value;
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
     array_ *= value;
     DownloadAndCheck(
-        [=](size_t x, size_t y, size_t z) { return value * value; });
+        [=](IndexType x, IndexType y, IndexType z) { return value * value; });
   }
 
   //----------------------------------------------------------------------------
@@ -253,17 +263,21 @@ class CudaArray3DBaseTest
     array_.Fill(value * value);
     CUDA_CHECK_ERROR
     array_ /= value;
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
     array_ /= value;
-    DownloadAndCheck([](size_t x, size_t y, size_t z) { return AsScalar(1); });
+    DownloadAndCheck(
+        [](IndexType x, IndexType y, IndexType z) { return AsScalar(1); });
   }
 
   //----------------------------------------------------------------------------
 
   void CheckApplyOpConstant(Scalar value) {
-    array_.ApplyOp(
-        [=] __device__(size_t x, size_t y, size_t z) { return value; });
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) { return value; });
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y, IndexType z) {
+      return value;
+    });
+    DownloadAndCheck(
+        [=](IndexType x, IndexType y, IndexType z) { return value; });
   }
 
   //----------------------------------------------------------------------------
@@ -271,12 +285,12 @@ class CudaArray3DBaseTest
   void CheckApplyOpLinear() {
     // Unfortunately, we can't use *this capture within the testing framework,
     // so we'll avoid accessing array_ in the lambda.
-    const size_t width = array_.Width();
-    const size_t height = array_.Height();
-    array_.ApplyOp([=] __device__(size_t x, size_t y, size_t z) {
+    const SizeType width = array_.Width();
+    const SizeType height = array_.Height();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y, IndexType z) {
       return AsScalar((z * height + y) * width + x);
     });
-    DownloadAndCheck([=](size_t x, size_t y, size_t z) {
+    DownloadAndCheck([=](IndexType x, IndexType y, IndexType z) {
       return AsScalar((z * array_.Height() + y) * array_.Width() + x);
     });
   }
@@ -288,11 +302,11 @@ class CudaArray3DBaseTest
     CUDA_CHECK_ERROR
 
     CudaArrayType local_array(array_);  // shallow copy for lambda capture
-    array_.ApplyOp([=] __device__(size_t x, size_t y, size_t z) {
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y, IndexType z) {
       return value + local_array.get(x, y, z);
     });
     DownloadAndCheck(
-        [=](size_t x, size_t y, size_t z) { return value + value; });
+        [=](IndexType x, IndexType y, IndexType z) { return value + value; });
   }
 
   //----------------------------------------------------------------------------
@@ -324,22 +338,62 @@ class CudaArray3DBaseTest
   }
 
   void CheckCopyToSurface2DArray() {
-    if (TypeInfo<Scalar>::kSupportedForTextures) {
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
       CheckCopyTo<cua::CudaSurface2DArray<Scalar>>();
     }
   }
 
   void CheckCopyToTexture3D() {
-    if (TypeInfo<Scalar>::kSupportedForTextures) {
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
       CheckCopyTo<cua::CudaTexture3D<Scalar>>();
     }
   }
 
   void CheckCopyToTexture2DArray() {
-    if (TypeInfo<Scalar>::kSupportedForTextures) {
+    if (TypeInfo<Scalar>::supported_for_textures::value) {
       CheckCopyTo<cua::CudaTexture2DArray<Scalar>>();
     }
   }
+
+  //----------------------------------------------------------------------------
+
+  /*
+  template <typename OtherType,
+            typename std::enable_if<std::is_same<
+                typename OtherType::Scalar, float>::value>::type other_is_float>
+  void CheckCastToFloat() {
+    const SizeType width = array_.Width();
+    const SizeType height = array_.Height();
+    array_.ApplyOp([=] __device__(IndexType x, IndexType y, IndexType z) {
+      return AsScalar((z * height + y) * width + x);
+    });
+
+    OtherType other(array_.Width(), array_.Height(), array_.Depth());
+    array_.CopyTo(&other);
+
+    DownloadAndCheck(other, [=](IndexType x, IndexType y, IndexType z) {
+      return static_cast<float>((z * array_.Height() + y) * array_.Width() + x);
+    });
+  }
+
+  void CheckCastToFloatArray() {
+    if (std::is_same<Scalar, unsigned int>::value) {
+      CheckCastToFloat<cua::CudaArray3D<float>>();
+    }
+  }
+
+  void CheckCastToFloatSurface() {
+    if (std::is_same<Scalar, unsigned int>::value) {
+      CheckCastToFloat<cua::CudaSurface3D<float>>();
+    }
+  }
+
+  void CheckCastToFloatTexture() {
+    if (std::is_same<Scalar, unsigned int>::value) {
+      CheckCastToFloat<cua::CudaTexture3D<float>>();
+    }
+  }
+  */
 
   //----------------------------------------------------------------------------
 
@@ -401,11 +455,33 @@ TYPED_TEST_P(CudaArray3DBaseTest, TestApplyOpUpdate) {
   this->CheckApplyOpUpdate(this->AsScalar(3));
 }
 
+TYPED_TEST_P(CudaArray3DBaseTest, TestCopyToArray) {
+  this->CheckCopyToArray();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestCopyToSurface3D) {
+  this->CheckCopyToSurface3D();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestCopyToSurface2DArray) {
+  this->CheckCopyToSurface2DArray();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestCopyToTexture3D) {
+  this->CheckCopyToTexture3D();
+}
+
+TYPED_TEST_P(CudaArray3DBaseTest, TestCopyToTexture2DArray) {
+  this->CheckCopyToTexture2DArray();
+}
+
 REGISTER_TYPED_TEST_SUITE_P(CudaArray3DBaseTest, TestUpload, TestView,
                             TestViewDownload, TestViewUpload, TestNestedViews,
                             TestFill, TestInPlaceAdd, TestInPlaceSubtract,
                             TestInPlaceMultiply, TestInPlaceDivide,
                             TestApplyOpConstant, TestApplyOpLinear,
-                            TestApplyOpUpdate);
+                            TestApplyOpUpdate, TestCopyToArray,
+                            TestCopyToSurface3D, TestCopyToSurface2DArray,
+                            TestCopyToTexture3D, TestCopyToTexture2DArray);
 
 #endif  // CUDA_ARRAY3D_BASE_TEST_H_

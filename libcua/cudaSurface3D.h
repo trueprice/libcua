@@ -218,6 +218,13 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
   // getters/setters
 
   /**
+   * @return the underlying cudaArray object for this surface
+   */
+  inline cudaArray *DeviceArray() const {
+    return shared_surface_.DeviceArray();
+  }
+
+  /**
    * @return the boundary mode for the underlying CUDA Surface object
    */
   __host__ __device__ inline cudaSurfaceBoundaryMode BoundaryMode() const {
@@ -231,6 +238,24 @@ class CudaSurface3DBase : public CudaArray3DBase<Derived> {
       const cudaSurfaceBoundaryMode boundary_mode) {
     boundary_mode_ = boundary_mode;
   }
+
+  /**
+   * @return the x offset for the underlying memory, or zero if the object is
+   *   not a view
+   */
+  __host__ __device__ inline IndexType XOffset() const { return x_offset_; }
+
+  /**
+   * @return the y offset for the underlying memory, or zero if the object is
+   *   not a view
+   */
+  __host__ __device__ inline IndexType YOffset() const { return y_offset_; }
+
+  /**
+   * @return the z offset for the underlying memory, or zero if the object is
+   *   not a view
+   */
+  __host__ __device__ inline IndexType ZOffset() const { return z_offset_; }
 
  protected:
   //
@@ -416,8 +441,10 @@ template <typename Derived>
 template <typename OtherDerived>
 inline void CudaSurface3DBase<Derived>::CopyTo(
     CudaSurface3DBase<OtherDerived> *other) const {
-  if (this == other) {
-    return;
+  if (std::is_same<Derived, OtherDerived>::value) {
+    if (this == reinterpret_cast<CudaSurface3DBase<Derived> *>(other)) {
+      return;
+    }
   }
   internal::CheckNotNull(other);
   internal::CheckSizeEqual3D(*this, *other);
@@ -429,7 +456,7 @@ inline void CudaSurface3DBase<Derived>::CopyTo(
     params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
     params.dstArray = other->DeviceArray();
     params.dstPos =
-        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+        make_cudaPos(other->XOffset(), other->YOffset(), other->ZOffset());
     params.extent = make_cudaExtent(width_, height_, depth_);
     params.kind = cudaMemcpyDeviceToDevice;
 
@@ -442,7 +469,7 @@ inline void CudaSurface3DBase<Derived>::CopyTo(
     params.srcPos = make_cudaPos(x_offset_, y_offset_, z_offset_);
     params.dstArray = other->DeviceArray();
     params.dstPos =
-        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+        make_cudaPos(other->XOffset(), other->YOffset(), other->ZOffset());
     params.extent = make_cudaExtent(width_, height_, depth_);
 
     cudaMemcpy3DPeer(&params);

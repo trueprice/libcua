@@ -442,7 +442,7 @@ inline void CudaArray3D<T>::CopyTo(CudaArray3D<T> *other) const {
     cudaMemcpy3DParms params = {0};
     params.srcPtr = GetPitchedPtr();
     params.dstPtr = other->GetPitchedPtr();
-    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.extent = make_cudaExtent(width_ * sizeof(Scalar), height_, depth_);
     params.kind = cudaMemcpyDeviceToDevice;
 
     cudaMemcpy3D(&params);
@@ -452,7 +452,7 @@ inline void CudaArray3D<T>::CopyTo(CudaArray3D<T> *other) const {
     params.dstDevice = other->Device();
     params.srcPtr = GetPitchedPtr();
     params.dstPtr = other->GetPitchedPtr();
-    params.extent = make_cudaExtent(width_, height_, depth_);
+    params.extent = make_cudaExtent(width_ * sizeof(Scalar), height_, depth_);
 
     cudaMemcpy3DPeer(&params);
   }
@@ -473,7 +473,7 @@ inline void CudaArray3D<T>::CopyTo(
     params.srcPtr = GetPitchedPtr();
     params.dstArray = other->DeviceArray();
     params.dstPos =
-        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+        make_cudaPos(other->XOffset(), other->YOffset(), other->ZOffset());
     params.extent = make_cudaExtent(width_, height_, depth_);
     params.kind = cudaMemcpyDeviceToDevice;
 
@@ -485,7 +485,7 @@ inline void CudaArray3D<T>::CopyTo(
     params.srcPtr = GetPitchedPtr();
     params.dstArray = other->DeviceArray();
     params.dstPos =
-        make_cudaPos(other->x_offset_, other->y_offset_, other->z_offset_);
+        make_cudaPos(other->XOffset(), other->YOffset(), other->ZOffset());
     params.extent = make_cudaExtent(width_, height_, depth_);
 
     cudaMemcpy3DPeer(&params);

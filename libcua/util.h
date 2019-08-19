@@ -142,7 +142,7 @@ inline void CheckSizeEqual3D(const T1 &array1, const T2 &array2) {
   CheckCompatibleTypes(array1, array2);
 #ifndef LIBCUA_IGNORE_RUNTIME_EXCEPTIONS
   if (array1.Width() != array2.Width() || array1.Height() != array2.Height() ||
-      array1.Depth() == array2.Depth()) {
+      array1.Depth() != array2.Depth()) {
     throw std::runtime_error("Arrays have different sizes (" +
                              ArraySizeToString3D(array1) + " vs " +
                              ArraySizeToString3D(array2) + ").");
